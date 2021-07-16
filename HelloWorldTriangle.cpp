@@ -31,6 +31,7 @@ HelloWorldTriangle::HelloWorldTriangle(std::string name, const VkInstance& insta
 	CreateFramebuffers(swapChain);
 	CreateSyncObjects(swapChain);
 	CreateCommandPool();
+	CreateVertexBuffer();
 	CreateScene();
 }
 
@@ -62,8 +63,13 @@ void HelloWorldTriangle::CreateScene()
 		vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
 
+		VkBuffer buffers[] = { graphicsPipeline.vertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, buffers, offsets);
+
+		vkCmdDraw(commandBuffersList[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+
 		// params: command buffer, vertex count, instanceCount (for instanced rendering), first vertex, first instance
-		vkCmdDraw(commandBuffersList[i], 3, 1, 0, 0); 
 		vkCmdEndRenderPass(commandBuffersList[i]);
 
 		if (vkEndCommandBuffer(commandBuffersList[i]) != VK_SUCCESS)
@@ -89,6 +95,7 @@ void HelloWorldTriangle::RecreateScene(const VulkanSwapChain& swapChain)
 	CreateRenderPass(swapChain);
 	CreateGraphicsPipeline(swapChain);
 	CreateFramebuffers(swapChain);
+	CreateVertexBuffer();
 	CreateCommandPool();
 	CreateScene();
 }
@@ -184,6 +191,8 @@ void HelloWorldTriangle::DestroyScene()
 	vkDestroyPipeline(device->logicalDevice, graphicsPipeline.pipeline, nullptr);
 	vkDestroyPipelineLayout(device->logicalDevice, graphicsPipeline.pipelineLayout, nullptr);
 	vkDestroyRenderPass(device->logicalDevice, graphicsPipeline.renderPass, nullptr);
+	vkDestroyBuffer(device->logicalDevice, graphicsPipeline.vertexBuffer, nullptr);
+	vkFreeMemory(device->logicalDevice, graphicsPipeline.vertexBufferMemory, nullptr);
 }
 
 void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
@@ -212,16 +221,16 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	fragShaderStageInfo.pName = "main";
 
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+	VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
+	std::array<VkVertexInputAttributeDescription, 2> attributeDescription = Vertex::getAttributeDescriptions();
 
 	// ** Vertex Input State **
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	//vertexInputInfo.pNext = nullptr;
-	//vertexInputInfo.flags = 0;
-	//vertexInputInfo.vertexBindingDescriptionCount = 0;
-	//vertexInputInfo.pVertexBindingDescriptions = nullptr;
-	//vertexInputInfo.vertexAttributeDescriptionCount = 0;
-	//vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+	vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescription.size());
+	vertexInputInfo.pVertexAttributeDescriptions = attributeDescription.data();
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
 	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -481,5 +490,52 @@ void HelloWorldTriangle::CreateSyncObjects(const VulkanSwapChain& swapChain)
 				throw std::runtime_error("Failed to create sync objects for a frame");
 	}
 
+
+}
+
+void HelloWorldTriangle::CreateVertexBuffer()
+{
+	VkBufferCreateInfo bufferInfo = {};
+	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // buffers can be shared between queue families just like images
+
+	graphicsPipeline.result = vkCreateBuffer(device->logicalDevice, &bufferInfo, nullptr, &graphicsPipeline.vertexBuffer);
+	if (graphicsPipeline.result != VK_SUCCESS)
+		throw std::runtime_error("Failed to create vertex buffer");
+
+	// assign memory to buffer
+	VkMemoryRequirements memRequirements;
+	vkGetBufferMemoryRequirements(device->logicalDevice, graphicsPipeline.vertexBuffer, &memRequirements);
+
+	VkPhysicalDeviceMemoryProperties memProperties;
+	vkGetPhysicalDeviceMemoryProperties(device->physicalDevice, &memProperties);
+
+	uint32_t typeIndex = 0;
+	VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
+	{
+		if ((memRequirements.memoryTypeBits & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
+		{
+			typeIndex = i;
+			break;
+		}
+	}
+
+	VkMemoryAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocInfo.allocationSize = memRequirements.size;
+	allocInfo.memoryTypeIndex = typeIndex;
+	graphicsPipeline.result = vkAllocateMemory(device->logicalDevice, &allocInfo, nullptr, &graphicsPipeline.vertexBufferMemory);
+	if (graphicsPipeline.result != VK_SUCCESS)
+		throw std::runtime_error("Failed to allocate vertex buffer memory");
+
+	vkBindBufferMemory(device->logicalDevice, graphicsPipeline.vertexBuffer, graphicsPipeline.vertexBufferMemory, 0); // if offset is not 0, it MUST be visible by memRequirements.alignment
+
+	void* data;
+	vkMapMemory(device->logicalDevice, graphicsPipeline.vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+	memcpy(data, vertices.data(), (size_t)bufferInfo.size);
+	vkUnmapMemory(device->logicalDevice, graphicsPipeline.vertexBufferMemory);
 
 }

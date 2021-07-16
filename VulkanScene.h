@@ -20,6 +20,8 @@
 #include <vulkan/vulkan.h>
 #include "VulkanDevice.h"
 #include "HelperStructs.h"
+#include <glm/glm.hpp>
+#include <array>
 
 #define SHADERPATH "Shaders/"
 

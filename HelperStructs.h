@@ -51,6 +51,8 @@ struct VulkanGraphicsPipeline
 	VkViewport viewport;
 	VkRect2D scissors;
 
+	VkBuffer vertexBuffer;
+	VkDeviceMemory vertexBufferMemory;
 
 	std::vector<VkShaderModule> sceneShaderModules;
 	size_t shaderFileSize;
