@@ -47,6 +47,9 @@ protected:
 	virtual void CreateShaderModules(const std::vector<char>& code) = 0;
 	virtual void CreateCommandPool() = 0;
 
+	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkQueue queue);
+
 
 	// Commands
 	VkCommandPool commandPool;

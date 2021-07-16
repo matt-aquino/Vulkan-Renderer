@@ -102,6 +102,14 @@ void HelloWorldTriangle::RecreateScene(const VulkanSwapChain& swapChain)
 
 VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain)
 {
+	/* Scene Main Loop
+	*
+	*  1. Acquire image from swap chain
+	*  2. Select appropriate command buffer, execute it
+	*  3. Return image to swap chain for presentation
+	*
+	*/
+
 	uint32_t imageIndex;
 	graphicsPipeline.result = vkAcquireNextImageKHR(device->logicalDevice, swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
@@ -495,47 +503,26 @@ void HelloWorldTriangle::CreateSyncObjects(const VulkanSwapChain& swapChain)
 
 void HelloWorldTriangle::CreateVertexBuffer()
 {
-	VkBufferCreateInfo bufferInfo = {};
-	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferInfo.size = sizeof(vertices[0]) * vertices.size();
-	bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // buffers can be shared between queue families just like images
+	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
-	graphicsPipeline.result = vkCreateBuffer(device->logicalDevice, &bufferInfo, nullptr, &graphicsPipeline.vertexBuffer);
-	if (graphicsPipeline.result != VK_SUCCESS)
-		throw std::runtime_error("Failed to create vertex buffer");
+	// create a staging buffer to upload vertex data on GPU for high performance
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
 
-	// assign memory to buffer
-	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(device->logicalDevice, graphicsPipeline.vertexBuffer, &memRequirements);
-
-	VkPhysicalDeviceMemoryProperties memProperties;
-	vkGetPhysicalDeviceMemoryProperties(device->physicalDevice, &memProperties);
-
-	uint32_t typeIndex = 0;
-	VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
-	{
-		if ((memRequirements.memoryTypeBits & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties)
-		{
-			typeIndex = i;
-			break;
-		}
-	}
-
-	VkMemoryAllocateInfo allocInfo = {};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
-	allocInfo.memoryTypeIndex = typeIndex;
-	graphicsPipeline.result = vkAllocateMemory(device->logicalDevice, &allocInfo, nullptr, &graphicsPipeline.vertexBufferMemory);
-	if (graphicsPipeline.result != VK_SUCCESS)
-		throw std::runtime_error("Failed to allocate vertex buffer memory");
-
-	vkBindBufferMemory(device->logicalDevice, graphicsPipeline.vertexBuffer, graphicsPipeline.vertexBufferMemory, 0); // if offset is not 0, it MUST be visible by memRequirements.alignment
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(device->logicalDevice, graphicsPipeline.vertexBufferMemory, 0, bufferInfo.size, 0, &data);
-	memcpy(data, vertices.data(), (size_t)bufferInfo.size);
-	vkUnmapMemory(device->logicalDevice, graphicsPipeline.vertexBufferMemory);
+	vkMapMemory(device->logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, vertices.data(), (size_t)bufferSize);
+	vkUnmapMemory(device->logicalDevice, stagingBufferMemory);
 
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, graphicsPipeline.vertexBuffer, graphicsPipeline.vertexBufferMemory);
+
+	copyBuffer(stagingBuffer, graphicsPipeline.vertexBuffer, bufferSize, device->GetQueues().renderQueue);
+
+	vkDestroyBuffer(device->logicalDevice, stagingBuffer, nullptr);
+	vkFreeMemory(device->logicalDevice, stagingBufferMemory, nullptr);
 }
