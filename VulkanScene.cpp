@@ -88,3 +88,18 @@ void VulkanScene::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSiz
 	
 	vkFreeCommandBuffers(device->logicalDevice, commandPool, 1, &tempBuffer);
 }
+
+VkShaderModule VulkanScene::CreateShaderModules(const std::vector<char>& code)
+{
+	VkShaderModuleCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	createInfo.codeSize = code.size();
+	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+	VkShaderModule shaderModule;
+	if (vkCreateShaderModule(device->logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create shader module");
+	
+	return shaderModule;
+}
+

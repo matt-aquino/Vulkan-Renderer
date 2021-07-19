@@ -257,10 +257,14 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 {
 	// ** Shaders **
 	auto vertShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Triangle/basic_triangle_vertex.spv");
-	CreateShaderModules(vertShaderCode);
+	VkShaderModule vertShaderModule = CreateShaderModules(vertShaderCode);
 
 	auto fragShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Triangle/basic_triangle_fragment.spv");
-	CreateShaderModules(fragShaderCode);
+	VkShaderModule fragShaderModule = CreateShaderModules(fragShaderCode);
+
+	graphicsPipeline.sceneShaderModules.push_back(vertShaderModule);
+	graphicsPipeline.sceneShaderModules.push_back(fragShaderModule);
+
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -310,8 +314,6 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	
 	VkPipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	//viewportState.pNext = nullptr;
-	//viewportState.flags = 0;
 	viewportState.viewportCount = 1;
 	viewportState.pViewports = &graphicsPipeline.viewport;
 	viewportState.scissorCount = 1;
@@ -320,8 +322,6 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	// ** Rasterizer **
 	VkPipelineRasterizationStateCreateInfo rasterizerInfo = {};
 	rasterizerInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	//rasterizerInfo.pNext = nullptr;
-	//rasterizerInfo.flags = 0;
 	rasterizerInfo.depthClampEnable = VK_FALSE; // setting to true is useful for special cases like shadow maps; requires a GPU feature to be enabled
 	rasterizerInfo.rasterizerDiscardEnable = VK_FALSE; // setting to true discards all output to the framebuffer
 	rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL; // options: Line - Point - Fill; anything but fill requires GPU feature
@@ -336,8 +336,6 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	// ** Multisampling **
 	VkPipelineMultisampleStateCreateInfo multisamplingInfo = {};
 	multisamplingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	//multisamplingInfo.pNext = nullptr;
-	//multisamplingInfo.flags = 0;
 	multisamplingInfo.sampleShadingEnable = VK_FALSE;
 	multisamplingInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 	multisamplingInfo.minSampleShading = 1.0f;
@@ -358,8 +356,6 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 
 	VkPipelineColorBlendStateCreateInfo colorBlendingInfo = {};
 	colorBlendingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	//colorBlendingInfo.pNext = nullptr;
-	//colorBlendingInfo.flags = 0;
 	colorBlendingInfo.logicOpEnable = VK_FALSE;
 	colorBlendingInfo.logicOp = VK_LOGIC_OP_COPY;
 	colorBlendingInfo.attachmentCount = 1;
@@ -490,24 +486,6 @@ void HelloWorldTriangle::CreateFramebuffers(const VulkanSwapChain& swapChain)
 	}
 }
 
-
-void HelloWorldTriangle::CreateShaderModules(const std::vector<char>& code)
-{
-	VkShaderModuleCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	//createInfo.pNext = nullptr;
-	//createInfo.flags = 0;
-	createInfo.codeSize = code.size();
-	createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-	VkShaderModule shaderModule;
-	graphicsPipeline.result = vkCreateShaderModule(device->logicalDevice, &createInfo, nullptr, &shaderModule);
-	
-	if (graphicsPipeline.result != VK_SUCCESS)
-		throw std::runtime_error("Failed to create shader module");
-
-	graphicsPipeline.sceneShaderModules.push_back(shaderModule);
-}
 
 void HelloWorldTriangle::CreateCommandPool()
 {

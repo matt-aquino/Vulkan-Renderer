@@ -20,7 +20,6 @@
 #include <vulkan/vulkan.h>
 #include "VulkanDevice.h"
 #include "HelperStructs.h"
-#include <array>
 
 #define SHADERPATH "Shaders/"
 
@@ -31,30 +30,41 @@ public:
 	VulkanScene();
 	~VulkanScene();
 
+	// ** Perform initial setup of a scene
 	virtual void CreateScene() = 0;
+
+	// ** Recreate the scene when swap chain goes out of date **
 	virtual void RecreateScene(const VulkanSwapChain& swapChain) = 0;
+
+	// ** perform main loop of scene **
 	virtual VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) = 0;
+	
+	// ** Clean up resources ** 
 	virtual void DestroyScene() = 0;
 
 	std::string sceneName;
+
 protected:
-
-
 	VulkanDevice *device;
 
-	// shaders
-	virtual void CreateShaderModules(const std::vector<char>& code) = 0;
+	// ** Allocate memory to a command pool for command buffers **
 	virtual void CreateCommandPool() = 0;
 
+	// ** Read shader files and create the shader modules used in a pipeline **
+	VkShaderModule CreateShaderModules(const std::vector<char>& code);
+
+	// ** Allocate a buffer of memory based on specifications **
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
+	
+	// ** Copy an existing buffer into another **
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkQueue queue);
 
 
-	// Commands
+	// Command Buffers
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> commandBuffersList;
 
-	// Synchronzation
+	// Synchronzation Objects
 	std::vector<VkSemaphore> renderCompleteSemaphores, presentCompleteSemaphores;
 	std::vector<VkFence> inFlightFences, imagesInFlight;
 

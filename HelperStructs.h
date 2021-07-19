@@ -24,6 +24,8 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <array>
+
 
 struct VulkanSwapChain
 {
@@ -100,6 +102,38 @@ enum class VulkanReturnValues
 	VK_SWAPCHAIN_OUT_OF_DATE,
 	VK_FUNCTION_SUCCESS,
 	VK_FUNCTION_FAILED,
+};
+
+struct Vertex
+{
+	glm::vec3 position; // for 2D objects, simply ignore the z value
+	glm::vec3 color;
+
+	static VkVertexInputBindingDescription getBindingDescription()
+	{
+		VkVertexInputBindingDescription bindDesc = {};
+		bindDesc.binding = 0;
+		bindDesc.stride = sizeof(Vertex);
+		bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return bindDesc;
+	}
+
+	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+	{
+		std::array<VkVertexInputAttributeDescription, 2> attrDesc{};
+		attrDesc[0].binding = 0;
+		attrDesc[0].location = 0; // match the location within the shader
+		attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT; // match format within shader (float, vec2, vec3, vec4,)
+		attrDesc[0].offset = offsetof(Vertex, position);
+
+		attrDesc[1].binding = 0;
+		attrDesc[1].location = 1;
+		attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attrDesc[1].offset = offsetof(Vertex, color);
+
+		return attrDesc;
+	}
 };
 
 
