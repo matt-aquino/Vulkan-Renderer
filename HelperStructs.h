@@ -18,6 +18,8 @@
 #define HELPERSTRUCTS_H
 
 #include "vulkan/vulkan.h"
+#include <glm/glm.hpp>
+#include <glm/gtx/transform.hpp>
 #include <vector>
 #include <fstream>
 #include <iostream>
@@ -34,6 +36,13 @@ struct VulkanSwapChain
 	VkSurfaceCapabilitiesKHR surfaceCapabilities;
 	std::vector<VkSurfaceFormatKHR> surfaceFormats;
 	std::vector<VkPresentModeKHR> surfacePresentModes;
+};
+
+struct PushConstants
+{
+	glm::mat4 modelMatrix;
+	glm::mat4 viewMatrix;
+	glm::mat4 projectionMatrix;
 };
 
 struct VulkanGraphicsPipeline
@@ -58,6 +67,8 @@ struct VulkanGraphicsPipeline
 	size_t shaderFileSize;
 
 	VkResult result;
+
+	PushConstants mvpMatrices;
 
 	std::vector<char> readShaderFile(const std::string& file)
 	{

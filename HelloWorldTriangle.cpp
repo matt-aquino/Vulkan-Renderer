@@ -37,6 +37,18 @@ HelloWorldTriangle::HelloWorldTriangle(std::string name, const VkInstance& insta
 
 void HelloWorldTriangle::CreateScene() 
 {
+	// create matrices
+
+	graphicsPipeline.mvpMatrices.modelMatrix = glm::mat4(1.0f); // identity matrix
+
+	graphicsPipeline.mvpMatrices.viewMatrix = glm::translate(glm::mat4(1.0f), cameraPosition);
+	//graphicsPipeline.mvpMatrices.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
+
+	graphicsPipeline.mvpMatrices.projectionMatrix = glm::perspective(glm::radians(90.0f),
+		graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 1.0f, 100.0f);
+
+	//graphicsPipeline.mvpMatrices.projectionMatrix[1][1] *= -1; // Vulkan Y-axis is flipped compared to other API
+
 	// begin recording command buffers
 
 	for (size_t i = 0; i < commandBuffersList.size(); i++)
@@ -66,6 +78,11 @@ void HelloWorldTriangle::CreateScene()
 		VkBuffer buffers[] = { graphicsPipeline.vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, buffers, offsets);
+
+
+		
+
+		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &graphicsPipeline.mvpMatrices);
 
 		vkCmdDraw(commandBuffersList[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
@@ -123,6 +140,8 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 		throw std::runtime_error("Failed to acquire swap chain image");
 	}
 
+	UpdatePushConstants(); // make sure we update them every frame
+
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
 	{
@@ -176,6 +195,35 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 	return VulkanReturnValues::VK_FUNCTION_SUCCESS;
 }
 
+void HelloWorldTriangle::UpdatePushConstants()
+{
+	// To Do: figure out why push constants are NOT updating the triangle on screen
+	// Also: validation layers state the following (fix this somehow):
+	/*
+	* VUID-vkResetFences-pFences-01123(ERROR / SPEC): msgNum: 1755645774 - Validation Error: [ VUID-vkResetFences-pFences-01123 ] 
+	  Object 0: handle = 0x8e52990000000013, type = VK_OBJECT_TYPE_FENCE; | MessageID = 0x68a5074e | VkFence 0x8e52990000000013[] is in use. 
+	  The Vulkan spec states: Each element of pFences must not be currently associated with any queue command that has not yet completed execution on that queue (https://vulkan.lunarg.com/doc/view/1.2.176.1/windows/1.2-extensions/vkspec.html#VUID-vkResetFences-pFences-01123)
+    
+	  Objects: 1
+       [0]  0x8e52990000000013, type: 7, name: NULL
+
+	*/
+	static auto startTime = std::chrono::high_resolution_clock::now();
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count(); // grab time since start of application
+
+
+	graphicsPipeline.mvpMatrices.modelMatrix = glm::rotate(graphicsPipeline.mvpMatrices.modelMatrix, time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // rotate around z-axis counterclockwise 
+
+	graphicsPipeline.mvpMatrices.viewMatrix = glm::translate(glm::mat4(1.0f), cameraPosition);
+	//graphicsPipeline.mvpMatrices.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
+
+	graphicsPipeline.mvpMatrices.projectionMatrix = glm::perspective(glm::radians(90.0f),
+		graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 1.0f, 100.0f);
+
+	//graphicsPipeline.mvpMatrices.projectionMatrix[1][1] *= -1; // Vulkan Y-axis is flipped compared to other API
+}
+
 void HelloWorldTriangle::DestroyScene() 
 {
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
@@ -201,6 +249,8 @@ void HelloWorldTriangle::DestroyScene()
 	vkDestroyRenderPass(device->logicalDevice, graphicsPipeline.renderPass, nullptr);
 	vkDestroyBuffer(device->logicalDevice, graphicsPipeline.vertexBuffer, nullptr);
 	vkFreeMemory(device->logicalDevice, graphicsPipeline.vertexBufferMemory, nullptr);
+
+	//free(device);
 }
 
 void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
@@ -319,15 +369,19 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	colorBlendingInfo.blendConstants[2] = 0.0f;
 	colorBlendingInfo.blendConstants[3] = 0.0f;
 
+	// Push Constants - uniform variables that we can access in our shaders
+	VkPushConstantRange pushConstants;
+	pushConstants.offset = 0;
+	pushConstants.size = sizeof(PushConstants);
+	pushConstants.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
 	// ** Pipeline Layout ** 
 	VkPipelineLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	//layoutInfo.pNext = nullptr;
-	//layoutInfo.flags = 0;
 	layoutInfo.setLayoutCount = 0;
 	layoutInfo.pSetLayouts = nullptr;
-	layoutInfo.pushConstantRangeCount = 0; // push constants are the uniform variables used in our shaders.
-	layoutInfo.pPushConstantRanges = nullptr;
+	layoutInfo.pushConstantRangeCount = 1; // push constants are an efficient way to pass data to shader, but are limited in size
+	layoutInfo.pPushConstantRanges = &pushConstants;
 
 	graphicsPipeline.result = vkCreatePipelineLayout(device->logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
 	if (graphicsPipeline.result != VK_SUCCESS)

@@ -43,6 +43,10 @@ void VulkanScene::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMe
 	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = typeIndex;
+
+	// for future reference: THIS IS BAD TO DO FOR INDIVIDUAL BUFFERS (for larger applications)
+	// max number of simultaneous memory allocations is limited by maxMemoryAllocationCount in physicalDevice
+	// best practice is to create a custom allocator that splits up single allocations among many different objects using the offset param
 	if (vkAllocateMemory(device->logicalDevice, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate vertex buffer memory");
 

@@ -94,8 +94,6 @@ void Renderer::CreateVKInstance()
     // VkInstanceCreateInfo is where the programmer specifies the layers and/or extensions that
     // are needed.
     instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    //instanceInfo.pNext = NULL;
-    //instanceInfo.flags = 0;
     instanceInfo.pApplicationInfo = &appInfo;
     instanceInfo.enabledExtensionCount = static_cast<uint32_t>(extensionsList.size());
     instanceInfo.ppEnabledExtensionNames = extensionsList.data();
@@ -197,6 +195,7 @@ void Renderer::RunApp()
 
 void Renderer::CleanUp()
 {
+    // Clear all scenes
     for (VulkanScene* scene : scenesList)
     {
         scene->DestroyScene();
@@ -205,6 +204,7 @@ void Renderer::CleanUp()
 
     scenesList.clear();
 
+    // destroy swap chain
     // order is very particular...
     for (VkImageView imageView : vulkanSwapChain.swapChainImageViews)
     {
@@ -212,8 +212,10 @@ void Renderer::CleanUp()
     }
 
     vkDestroySwapchainKHR(device->logicalDevice, vulkanSwapChain.swapChain, nullptr);
+    vkDestroyDevice(device->logicalDevice, nullptr);
     vkDestroySurfaceKHR(instance, renderSurface, NULL);
     vkDestroyInstance(instance, NULL);
+
     SDL_DestroyWindow(appWindow);
     SDL_Quit();
 }
@@ -280,7 +282,7 @@ void Renderer::CreateSwapChain()
             vulkanSwapChain.surfaceCapabilities.maxImageExtent.height);
     }
     
-
+    // my computer allows a minimum of 2 images, so we'll allow 3 for swap chain
     uint32_t imageCount = vulkanSwapChain.surfaceCapabilities.minImageCount + 1;
 
     // make sure we don't have more images than the surface can handle
@@ -289,8 +291,6 @@ void Renderer::CreateSwapChain()
 
     VkSwapchainCreateInfoKHR createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    //createInfo.pNext = nullptr;
-    //createInfo.flags = 0;
     createInfo.surface = renderSurface;
     createInfo.minImageCount = imageCount;
     createInfo.imageFormat = surfaceFormat.format;
@@ -349,8 +349,6 @@ void Renderer::CreateImages()
     {
         VkImageViewCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        //createInfo.pNext = nullptr;
-        //createInfo.flags = 0;
         createInfo.image = vulkanSwapChain.swapChainImages[i];
         createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; // images can be either 1D, 2D, 3D, and cubemaps
         createInfo.format = vulkanSwapChain.swapChainImageFormat;

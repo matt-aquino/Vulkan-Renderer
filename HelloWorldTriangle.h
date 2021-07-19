@@ -18,6 +18,7 @@
 #define HELLO_WORLD_TRIANGLE_H
 
 #include "VulkanScene.h"
+#include <chrono>
 
 class HelloWorldTriangle : public VulkanScene
 {
@@ -32,19 +33,35 @@ public:
 	void DestroyScene() override;
 
 private:
-
+	// ** Create all aspects of the graphics pipeline **
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);
+
+	// ** Define the render pass, along with any subpasses, dependencies, and color attachments **
 	void CreateRenderPass(const VulkanSwapChain& swapChain);
+	 
+	// ** Create the framebuffers used for rendering **
 	void CreateFramebuffers(const VulkanSwapChain& swapChain);
+
+	// ** Read shader files and create the shader modules used in the graphics pipeline **
 	void CreateShaderModules(const std::vector<char>& code) override;
+
+	// ** Allocate memory to a command pool for command buffers **
 	void CreateCommandPool() override;
+
+	// ** Create the synchronization object - semaphores, fences **
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);
+
+	// ** Create vertex buffers via staging buffers **
 	void CreateVertexBuffer();
-	
+
+	// ** Update uniform variables for shaders **
+	void UpdatePushConstants();
 
 	VulkanGraphicsPipeline graphicsPipeline;
+	const glm::vec3 cameraPosition = { 0.0f, 0.0f, -2.0f };
+
 	size_t currentFrame = 0;
-	const int MAX_FRAMES_IN_FLIGHT = 2;
+	const int MAX_FRAMES_IN_FLIGHT = 3; // we need 1 fence per frame. since we're triple buffering, that means 3 fences
 
 	struct Vertex
 	{
