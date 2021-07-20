@@ -636,3 +636,8 @@ void HelloWorldTriangle::CreateVertexBuffer()
 	vkDestroyBuffer(device->logicalDevice, stagingBuffer, nullptr);
 	vkFreeMemory(device->logicalDevice, stagingBufferMemory, nullptr);
 }
+
+void HelloWorldTriangle::createImages(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
+{
+
+}

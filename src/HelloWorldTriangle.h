@@ -51,10 +51,15 @@ private:
 	// ** Create vertex buffers via staging buffers **
 	void CreateVertexBuffer();
 
+	// ** Create uniform variables for our shaders **
 	void CreateUniforms(const VulkanSwapChain& swapChain);
 
 	// ** Update uniform variables for shaders **
 	void UpdateUniforms(uint32_t currentImage);
+
+	// ** Helper function to create images
+	void createImages(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
+	
 
 	VulkanGraphicsPipeline graphicsPipeline;
 	const glm::vec3 cameraPosition = { 0.0f, 0.0f, -5.0f };
