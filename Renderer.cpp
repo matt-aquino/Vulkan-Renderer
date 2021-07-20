@@ -385,10 +385,7 @@ void Renderer::RecreateSwapChain()
         vkDestroyImageView(device->logicalDevice, vulkanSwapChain.swapChainImageViews[i], nullptr);
     }
 
-    vkDestroySurfaceKHR(instance, renderSurface, nullptr);
     vkDestroySwapchainKHR(device->logicalDevice, vulkanSwapChain.swapChain, nullptr);
-
-    CreateVKSurface();
     CreateSwapChain();
     CreateImages();
 

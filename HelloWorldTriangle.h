@@ -42,7 +42,6 @@ private:
 	// ** Create the framebuffers used for rendering **
 	void CreateFramebuffers(const VulkanSwapChain& swapChain);
 
-
 	// ** Allocate memory to a command pool for command buffers **
 	void CreateCommandPool() override;
 
@@ -52,11 +51,13 @@ private:
 	// ** Create vertex buffers via staging buffers **
 	void CreateVertexBuffer();
 
+	void CreateUniforms(const VulkanSwapChain& swapChain);
+
 	// ** Update uniform variables for shaders **
-	void UpdatePushConstants();
+	void UpdateUniforms(uint32_t currentImage);
 
 	VulkanGraphicsPipeline graphicsPipeline;
-	const glm::vec3 cameraPosition = { 0.0f, 0.0f, -2.0f };
+	const glm::vec3 cameraPosition = { 0.0f, 0.0f, -5.0f };
 
 	size_t currentFrame = 0;
 	const int MAX_FRAMES_IN_FLIGHT = 3; // we need 1 fence per frame. since we're triple buffering, that means 3 fences
@@ -64,8 +65,8 @@ private:
 
 	const std::vector<Vertex> vertices = {
 		{{0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
-		{{0.5f, 0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},
-		{{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}}
+		{{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},
+		{{0.5f, 0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}}
 	};
 };
 

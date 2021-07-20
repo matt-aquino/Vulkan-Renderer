@@ -80,8 +80,6 @@ VulkanDevice* VulkanDevice::GetVulkanDevice(VkInstance appInstance, VkSurfaceKHR
 
         VkDeviceCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        //createInfo.pNext = nullptr;
-        //createInfo.flags = 0;
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
         createInfo.pEnabledFeatures = &features;
@@ -99,7 +97,6 @@ VulkanDevice* VulkanDevice::GetVulkanDevice(VkInstance appInstance, VkSurfaceKHR
 
 	return device;
 }
-
 
 bool VulkanDevice::checkDeviceSupportedExtensions(VkPhysicalDevice dev)
 {

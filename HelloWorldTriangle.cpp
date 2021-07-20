@@ -26,6 +26,7 @@ HelloWorldTriangle::HelloWorldTriangle(std::string name, const VkInstance& insta
 	sceneName = name;
 	device = device->GetVulkanDevice(instance, appSurface);
 
+	CreateUniforms(swapChain);
 	CreateRenderPass(swapChain);
 	CreateGraphicsPipeline(swapChain);
 	CreateFramebuffers(swapChain);
@@ -36,19 +37,7 @@ HelloWorldTriangle::HelloWorldTriangle(std::string name, const VkInstance& insta
 }
 
 void HelloWorldTriangle::CreateScene() 
-{
-	// create matrices
-
-	graphicsPipeline.mvpMatrices.modelMatrix = glm::mat4(1.0f); // identity matrix
-
-	graphicsPipeline.mvpMatrices.viewMatrix = glm::translate(glm::mat4(1.0f), cameraPosition);
-	//graphicsPipeline.mvpMatrices.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
-
-	graphicsPipeline.mvpMatrices.projectionMatrix = glm::perspective(glm::radians(90.0f),
-		graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 1.0f, 100.0f);
-
-	//graphicsPipeline.mvpMatrices.projectionMatrix[1][1] *= -1; // Vulkan Y-axis is flipped compared to other API
-
+{	
 	// begin recording command buffers
 
 	for (size_t i = 0; i < commandBuffersList.size(); i++)
@@ -78,11 +67,8 @@ void HelloWorldTriangle::CreateScene()
 		VkBuffer buffers[] = { graphicsPipeline.vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, buffers, offsets);
-
-
-		
-
-		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &graphicsPipeline.mvpMatrices);
+		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &graphicsPipeline.pushConstant);
+		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout, 0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
 
 		vkCmdDraw(commandBuffersList[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
@@ -104,11 +90,19 @@ void HelloWorldTriangle::RecreateScene(const VulkanSwapChain& swapChain)
 	}
 
 	vkFreeCommandBuffers(device->logicalDevice, commandPool, static_cast<uint32_t>(commandBuffersList.size()), commandBuffersList.data());
-
 	vkDestroyPipeline(device->logicalDevice, graphicsPipeline.pipeline, nullptr);
 	vkDestroyPipelineLayout(device->logicalDevice, graphicsPipeline.pipelineLayout, nullptr);
 	vkDestroyRenderPass(device->logicalDevice, graphicsPipeline.renderPass, nullptr);
+	
+	size_t uniformBufferSize = graphicsPipeline.uniformBuffers.size();
+	for (size_t i = 0; i < uniformBufferSize; i++)
+	{
+		vkDestroyBuffer(device->logicalDevice, graphicsPipeline.uniformBuffers[i], nullptr);
+		vkFreeMemory(device->logicalDevice, graphicsPipeline.uniformBuffersMemory[i], nullptr);
+	}
+	vkDestroyDescriptorPool(device->logicalDevice, graphicsPipeline.descriptorPool, nullptr);
 
+	CreateUniforms(swapChain);
 	CreateRenderPass(swapChain);
 	CreateGraphicsPipeline(swapChain);
 	CreateFramebuffers(swapChain);
@@ -140,7 +134,7 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 		throw std::runtime_error("Failed to acquire swap chain image");
 	}
 
-	UpdatePushConstants(); // make sure we update them every frame
+	UpdateUniforms(imageIndex); // update matrices as needed
 
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
@@ -195,33 +189,103 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 	return VulkanReturnValues::VK_FUNCTION_SUCCESS;
 }
 
-void HelloWorldTriangle::UpdatePushConstants()
+void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 {
-	// To Do: figure out why push constants are NOT updating the triangle on screen
-	// Also: validation layers state the following (fix this somehow):
-	/*
-	* VUID-vkResetFences-pFences-01123(ERROR / SPEC): msgNum: 1755645774 - Validation Error: [ VUID-vkResetFences-pFences-01123 ] 
-	  Object 0: handle = 0x8e52990000000013, type = VK_OBJECT_TYPE_FENCE; | MessageID = 0x68a5074e | VkFence 0x8e52990000000013[] is in use. 
-	  The Vulkan spec states: Each element of pFences must not be currently associated with any queue command that has not yet completed execution on that queue (https://vulkan.lunarg.com/doc/view/1.2.176.1/windows/1.2-extensions/vkspec.html#VUID-vkResetFences-pFences-01123)
-    
-	  Objects: 1
-       [0]  0x8e52990000000013, type: 7, name: NULL
+	// create uniform matrices
+	graphicsPipeline.ubo.model = glm::mat4(1.0f);
+	graphicsPipeline.ubo.view = glm::translate(glm::mat4(1.0f), cameraPosition);
+	graphicsPipeline.pushConstant.projectionMatrix = glm::perspective(glm::radians(90.0f), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
 
-	*/
+	// create descriptor sets for UBO
+	VkDescriptorSetLayoutBinding uboBinding = {};
+	uboBinding.binding = 0;
+	uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboBinding.descriptorCount = 1;
+	uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uboBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = 1;
+	layoutInfo.pBindings = &uboBinding;
+
+	if (vkCreateDescriptorSetLayout(device->logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor set layout!");
+
+	size_t swapChainSize = swapChain.swapChainImages.size();
+	
+	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+	graphicsPipeline.uniformBuffers.resize(swapChainSize);
+	graphicsPipeline.uniformBuffersMemory.resize(swapChainSize);
+
+	for (size_t i = 0; i < swapChainSize; i++)
+	{
+		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			graphicsPipeline.uniformBuffers[i], graphicsPipeline.uniformBuffersMemory[i]);
+	}
+
+	// allocate a descriptor set for each frame
+	VkDescriptorPoolSize poolSize = {};
+	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSize.descriptorCount = static_cast<uint32_t>(swapChainSize);
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.poolSizeCount = 1;
+	poolInfo.pPoolSizes = &poolSize;
+	poolInfo.maxSets = static_cast<uint32_t>(swapChainSize);
+
+	if (vkCreateDescriptorPool(device->logicalDevice, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor pool");
+
+	std::vector<VkDescriptorSetLayout> layout(swapChainSize, graphicsPipeline.descriptorSetLayout);
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = graphicsPipeline.descriptorPool;
+	allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainSize);
+	allocInfo.pSetLayouts = layout.data();
+	graphicsPipeline.descriptorSets.resize(swapChainSize);
+
+	if (vkAllocateDescriptorSets(device->logicalDevice, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
+		throw std::runtime_error("Failed to allocate descriptor sets");
+
+	for (size_t i = 0; i < swapChainSize; i++)
+	{
+		VkDescriptorBufferInfo bufferInfo = {};
+		bufferInfo.buffer = graphicsPipeline.uniformBuffers[i];
+		bufferInfo.offset = 0;
+		bufferInfo.range = sizeof(UniformBufferObject);
+
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = graphicsPipeline.descriptorSets[i];
+		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.pBufferInfo = &bufferInfo;
+		descriptorWrite.pImageInfo = nullptr; // used for descriptors that refer to image data
+		descriptorWrite.pTexelBufferView = nullptr; // used for descriptors that refer to buffer views
+		vkUpdateDescriptorSets(device->logicalDevice, 1, &descriptorWrite, 0, nullptr);
+	}
+}
+
+void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
+{
+	// Calculate time since last frame
 	static auto startTime = std::chrono::high_resolution_clock::now();
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count(); // grab time since start of application
 
-
-	graphicsPipeline.mvpMatrices.modelMatrix = glm::rotate(graphicsPipeline.mvpMatrices.modelMatrix, time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // rotate around z-axis counterclockwise 
-
-	graphicsPipeline.mvpMatrices.viewMatrix = glm::translate(glm::mat4(1.0f), cameraPosition);
-	//graphicsPipeline.mvpMatrices.viewMatrix = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
-
-	graphicsPipeline.mvpMatrices.projectionMatrix = glm::perspective(glm::radians(90.0f),
-		graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 1.0f, 100.0f);
-
-	//graphicsPipeline.mvpMatrices.projectionMatrix[1][1] *= -1; // Vulkan Y-axis is flipped compared to other API
+	graphicsPipeline.ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	graphicsPipeline.ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
+	graphicsPipeline.pushConstant.projectionMatrix = glm::perspective(glm::radians(90.0f), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
+	
+	void* data;
+	vkMapMemory(device->logicalDevice, graphicsPipeline.uniformBuffersMemory[currentImage], 0, sizeof(UniformBufferObject), 0, &data);
+	memcpy(data, &graphicsPipeline.ubo, sizeof(UniformBufferObject));
+	vkUnmapMemory(device->logicalDevice, graphicsPipeline.uniformBuffersMemory[currentImage]);
+	
 }
 
 void HelloWorldTriangle::DestroyScene() 
@@ -239,53 +303,51 @@ void HelloWorldTriangle::DestroyScene()
 		vkDestroyFramebuffer(device->logicalDevice, fb, nullptr);
 	}
 
-	for (VkShaderModule module : graphicsPipeline.sceneShaderModules)
+
+	size_t uniformBufferSize = graphicsPipeline.uniformBuffers.size();
+	for (size_t i = 0; i < uniformBufferSize; i++)
 	{
-		vkDestroyShaderModule(device->logicalDevice, module, nullptr);
+		vkDestroyBuffer(device->logicalDevice, graphicsPipeline.uniformBuffers[i], nullptr);
+		vkFreeMemory(device->logicalDevice, graphicsPipeline.uniformBuffersMemory[i], nullptr);
 	}
 
+	vkDestroyDescriptorPool(device->logicalDevice, graphicsPipeline.descriptorPool, nullptr);
+	vkDestroyDescriptorSetLayout(device->logicalDevice, graphicsPipeline.descriptorSetLayout, nullptr);
 	vkDestroyPipeline(device->logicalDevice, graphicsPipeline.pipeline, nullptr);
 	vkDestroyPipelineLayout(device->logicalDevice, graphicsPipeline.pipelineLayout, nullptr);
 	vkDestroyRenderPass(device->logicalDevice, graphicsPipeline.renderPass, nullptr);
 	vkDestroyBuffer(device->logicalDevice, graphicsPipeline.vertexBuffer, nullptr);
 	vkFreeMemory(device->logicalDevice, graphicsPipeline.vertexBufferMemory, nullptr);
-
-	//free(device);
 }
 
 void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 {
-	// ** Shaders **
+#pragma region SHADERS
 	auto vertShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Triangle/basic_triangle_vertex.spv");
 	VkShaderModule vertShaderModule = CreateShaderModules(vertShaderCode);
 
 	auto fragShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Triangle/basic_triangle_fragment.spv");
 	VkShaderModule fragShaderModule = CreateShaderModules(fragShaderCode);
 
-	graphicsPipeline.sceneShaderModules.push_back(vertShaderModule);
-	graphicsPipeline.sceneShaderModules.push_back(fragShaderModule);
-
-
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	//vertShaderStageInfo.pNext = nullptr;
-	//vertShaderStageInfo.flags = 0;
 	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertShaderStageInfo.module = graphicsPipeline.sceneShaderModules[0];
+	vertShaderStageInfo.module = vertShaderModule;
 	vertShaderStageInfo.pName = "main";
 
 	VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
 	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	//fragShaderStageInfo.pNext = nullptr;
-	//fragShaderStageInfo.flags = 0;
 	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragShaderStageInfo.module = graphicsPipeline.sceneShaderModules[1];
+	fragShaderStageInfo.module = fragShaderModule;
 	fragShaderStageInfo.pName = "main";
 
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 	VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
 	std::array<VkVertexInputAttributeDescription, 2> attributeDescription = Vertex::getAttributeDescriptions();
 
+#pragma endregion 
+
+#pragma region VERTEX_INPUT_STATE
 	// ** Vertex Input State **
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -296,11 +358,11 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
 	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	//inputAssemblyInfo.pNext = nullptr;
-	//inputAssemblyInfo.flags = 0;
 	inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+#pragma endregion 
 
+#pragma region VIEWPORT
 	// ** Viewport **
 	graphicsPipeline.viewport.x = 0.0f;
 	graphicsPipeline.viewport.y = 0.0f;
@@ -318,7 +380,9 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	viewportState.pViewports = &graphicsPipeline.viewport;
 	viewportState.scissorCount = 1;
 	viewportState.pScissors = &graphicsPipeline.scissors;
+#pragma endregion 
 
+#pragma region RASTERIZER
 	// ** Rasterizer **
 	VkPipelineRasterizationStateCreateInfo rasterizerInfo = {};
 	rasterizerInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -326,13 +390,15 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	rasterizerInfo.rasterizerDiscardEnable = VK_FALSE; // setting to true discards all output to the framebuffer
 	rasterizerInfo.polygonMode = VK_POLYGON_MODE_FILL; // options: Line - Point - Fill; anything but fill requires GPU feature
 	rasterizerInfo.lineWidth = 1.0f; // increases/decreases number of fragments used in line thickness; max number depends on hardware and wideLines GPU feature
-	rasterizerInfo.cullMode = VK_CULL_MODE_BACK_BIT; // back face culling
-	rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizerInfo.cullMode = VK_CULL_MODE_NONE; // no face culling
+	rasterizerInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	rasterizerInfo.depthBiasEnable = VK_FALSE;
 	rasterizerInfo.depthBiasConstantFactor = 0.0f;
 	rasterizerInfo.depthBiasClamp = 0.0f;
 	rasterizerInfo.depthBiasSlopeFactor = 0.0f;
+#pragma endregion 
 
+#pragma region MULTISAMPLING
 	// ** Multisampling **
 	VkPipelineMultisampleStateCreateInfo multisamplingInfo = {};
 	multisamplingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -342,7 +408,9 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	multisamplingInfo.pSampleMask = nullptr;
 	multisamplingInfo.alphaToCoverageEnable = VK_FALSE;
 	multisamplingInfo.alphaToOneEnable = VK_FALSE;
+#pragma endregion 
 
+#pragma region COLOR_BLENDING
 	// ** Color Blending **
 	VkPipelineColorBlendAttachmentState colorBlendingAttachment;
 	colorBlendingAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -364,20 +432,27 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	colorBlendingInfo.blendConstants[1] = 0.0f;
 	colorBlendingInfo.blendConstants[2] = 0.0f;
 	colorBlendingInfo.blendConstants[3] = 0.0f;
+#pragma endregion 
 
+#pragma region PUSH_CONSTANTS
 	// Push Constants - uniform variables that we can access in our shaders
 	VkPushConstantRange pushConstants;
 	pushConstants.offset = 0;
 	pushConstants.size = sizeof(PushConstants);
 	pushConstants.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+#pragma endregion 
+
+#pragma region DYNAMIC_STATE
+// to be filled eventually
+#pragma endregion
 
 	// ** Pipeline Layout ** 
 	VkPipelineLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	layoutInfo.setLayoutCount = 0;
-	layoutInfo.pSetLayouts = nullptr;
 	layoutInfo.pushConstantRangeCount = 1; // push constants are an efficient way to pass data to shader, but are limited in size
 	layoutInfo.pPushConstantRanges = &pushConstants;
+	layoutInfo.setLayoutCount = 1;
+	layoutInfo.pSetLayouts = &graphicsPipeline.descriptorSetLayout;
 
 	graphicsPipeline.result = vkCreatePipelineLayout(device->logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
 	if (graphicsPipeline.result != VK_SUCCESS)
@@ -408,6 +483,9 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	graphicsPipeline.result = vkCreateGraphicsPipelines(device->logicalDevice, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline.pipeline);
 	if (graphicsPipeline.result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics pipeline");
+
+	vkDestroyShaderModule(device->logicalDevice, vertShaderModule, nullptr);
+	vkDestroyShaderModule(device->logicalDevice, fragShaderModule, nullptr);
 }
 
 void HelloWorldTriangle::CreateRenderPass(const VulkanSwapChain& swapChain)

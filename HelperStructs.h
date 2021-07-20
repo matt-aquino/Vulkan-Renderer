@@ -25,7 +25,7 @@
 #include <iostream>
 #include <string>
 #include <array>
-
+#include <unordered_map>
 
 struct VulkanSwapChain
 {
@@ -40,21 +40,30 @@ struct VulkanSwapChain
 	std::vector<VkPresentModeKHR> surfacePresentModes;
 };
 
+// Ways to Pass uniforms into shaders
+
+// UBOs and SSBOs are for dynamic data
+// since we have small amounts of data, we opt to use UBOs
+struct UniformBufferObject
+{
+	glm::mat4 model; 
+	glm::mat4 view;
+};
+
+// Push Constants are for static data that never change during runtime
 struct PushConstants
 {
-	glm::mat4 modelMatrix;
-	glm::mat4 viewMatrix;
 	glm::mat4 projectionMatrix;
 };
 
 struct VulkanGraphicsPipeline
 {
-	// Rendering
 	VkPipelineLayout pipelineLayout;
 	VkPipeline pipeline;
 
 	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorSet descriptorSet;
+	std::vector<VkDescriptorSet> descriptorSets;
+	VkDescriptorPool descriptorPool;
 
 	VkRenderPass renderPass;
 	std::vector<VkFramebuffer> framebuffers;
@@ -64,13 +73,16 @@ struct VulkanGraphicsPipeline
 
 	VkBuffer vertexBuffer;
 	VkDeviceMemory vertexBufferMemory;
+	std::vector<VkBuffer> uniformBuffers;
+	std::vector<VkDeviceMemory> uniformBuffersMemory;
 
-	std::vector<VkShaderModule> sceneShaderModules;
+
 	size_t shaderFileSize;
 
 	VkResult result;
 
-	PushConstants mvpMatrices;
+	UniformBufferObject ubo;
+	PushConstants pushConstant;
 
 	std::vector<char> readShaderFile(const std::string& file)
 	{

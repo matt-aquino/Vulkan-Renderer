@@ -3,17 +3,21 @@
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inColor; 
 
-layout(push_constant) uniform matrices
+layout(push_constant) uniform PushConstants
+{
+	mat4 projection;
+} pushConstants;
+
+layout(binding = 0) uniform UniformBufferObject
 {
 	mat4 model;
 	mat4 view;
-	mat4 projection;
-} pushConstants;
+} ubo;
 
 layout(location = 0) out vec3 vertexColor;
 
 void main()
 {
-	gl_Position = pushConstants.projection * pushConstants.view * pushConstants.model * vec4(inPosition, 1.0);
+	gl_Position = pushConstants.projection * ubo.view * ubo.model * vec4(inPosition, 1.0);
 	vertexColor = inColor;
 }
