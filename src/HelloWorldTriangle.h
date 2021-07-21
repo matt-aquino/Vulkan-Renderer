@@ -63,6 +63,11 @@ private:
 
 	size_t currentFrame = 0;
 
+	struct PushConstants
+	{
+		glm::mat4 projectionMatrix;
+	} pushConstants;
+
 	const std::vector<Vertex> vertices = {
 		{{0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},
 		{{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},

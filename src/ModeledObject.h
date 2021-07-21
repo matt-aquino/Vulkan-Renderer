@@ -19,6 +19,7 @@
 
 #include "VulkanScene.h"
 #include "Model.h"
+#include <chrono>
 
 class ModeledObject : public VulkanScene
 {
@@ -39,20 +40,24 @@ public:
 
 private:
 	Model *object;
-	std::string sceneName;
 
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);
 	void CreateRenderPass(const VulkanSwapChain& swapChain);
 	void CreateFramebuffer(const VulkanSwapChain& swapChain);
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);
 	void CreateUniforms(const VulkanSwapChain& swapChain);
-	void UpdateUniforms(uint32_t currentImage);
+	void UpdateUniforms();
 
 	void CreateCommandPool() override;
 
 	VulkanGraphicsPipeline graphicsPipeline;
-	UniformBufferObject ubo;
-	PushConstants pushConstants;
+
+	struct PushConstants
+	{
+		alignas(16)glm::mat4 model;
+		alignas(16)glm::mat4 view;
+		alignas(16)glm::mat4 projection;
+	}pushConstants;
 
 	glm::vec3 cameraPosition;
 	size_t currentFrame = 0;

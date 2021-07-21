@@ -27,6 +27,9 @@
 #include <array>
 #include <unordered_map>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/hash.hpp"
+
 struct VulkanSwapChain
 {
 	VkSwapchainKHR swapChain{};
@@ -48,12 +51,6 @@ struct UniformBufferObject
 {
 	glm::mat4 model; 
 	glm::mat4 view;
-};
-
-// Push Constants are for static data that never change during runtime
-struct PushConstants
-{
-	glm::mat4 projectionMatrix;
 };
 
 struct VulkanGraphicsPipeline
@@ -82,7 +79,6 @@ struct VulkanGraphicsPipeline
 	VkResult result;
 
 	UniformBufferObject ubo;
-	PushConstants pushConstant;
 
 	std::vector<char> readShaderFile(const std::string& file)
 	{
@@ -150,9 +146,9 @@ struct Vertex
 
 struct ModelVertex
 {
-	glm::vec3 position; 
-	glm::vec2 texcoord;
-	glm::vec3 normal;
+	alignas(16)glm::vec3 position; 
+	alignas(16)glm::vec3 normal;
+	alignas(8)glm::vec2 texcoord;
 
 	static VkVertexInputBindingDescription getBindingDescription()
 	{
@@ -184,7 +180,25 @@ struct ModelVertex
 
 		return attrDesc;
 	}
+
+	bool operator==(const ModelVertex& other) const
+	{
+		return position == other.position &&
+			normal == other.normal && texcoord == other.texcoord;
+	}
 };
+
+namespace std
+{
+	template<> struct hash<ModelVertex>
+	{
+		size_t operator()(ModelVertex const& vertex) const {
+			return ((hash<glm::vec3>()(vertex.position) ^
+				(hash<glm::vec3>()(vertex.normal) << 1)) >> 1) ^
+				(hash<glm::vec2>()(vertex.texcoord) << 1);
+		}
+	};
+}
 
 
 #endif //!HELPERSTRUCTS_H

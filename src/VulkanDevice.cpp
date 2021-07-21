@@ -17,10 +17,6 @@
 #include "VulkanDevice.h"
 
 VulkanDevice* VulkanDevice::device = nullptr;
-VkPhysicalDevice VulkanDevice::physicalDevice = VK_NULL_HANDLE;
-VkDevice VulkanDevice::logicalDevice = VK_NULL_HANDLE;
-VulkanDevice::Queue VulkanDevice::queues = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-VulkanDevice::QueueFamilyIndices VulkanDevice::familyIndices = {std::nullopt, std::nullopt};
 std::vector<const char*> requiredDeviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
 VulkanDevice::VulkanDevice()
@@ -49,16 +45,16 @@ void VulkanDevice::CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSu
 
     std::vector<VkPhysicalDevice> possibleDevices(deviceCount);
     vkEnumeratePhysicalDevices(appInstance, &deviceCount, possibleDevices.data());
-    physicalDevice = possibleDevices[0]; // designed for my computer, which only has 1 GPU
+    device->physicalDevice = possibleDevices[0]; // designed for my computer, which only has 1 GPU
 
     // grab device properties
     VkPhysicalDeviceProperties properties;
     VkPhysicalDeviceFeatures features;
 
-    vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-    vkGetPhysicalDeviceFeatures(physicalDevice, &features);
+    vkGetPhysicalDeviceProperties(device->physicalDevice, &properties);
+    vkGetPhysicalDeviceFeatures(device->physicalDevice, &features);
 
-    QueueFamilyIndices indices = findQueueFamilies(physicalDevice, appSurface);
+    QueueFamilyIndices indices = findQueueFamilies(appSurface);
 
     float priority = 1.0f;
 
@@ -83,13 +79,13 @@ void VulkanDevice::CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSu
     createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size());
     createInfo.ppEnabledExtensionNames = requiredDeviceExtensions.data();
     createInfo.enabledLayerCount = 0;
-    VkResult result = vkCreateDevice(physicalDevice, &createInfo, nullptr, &logicalDevice);
+    VkResult result = vkCreateDevice(device->physicalDevice, &createInfo, nullptr, &device->logicalDevice);
 
     if (result != VK_SUCCESS)
         throw std::runtime_error("Failed to create logical device!");
 
-    vkGetDeviceQueue(logicalDevice, indices.graphicsFamily.value(), 0, &queues.renderQueue);
-    vkGetDeviceQueue(logicalDevice, indices.presentFamily.value(), 0, &queues.presentQueue);
+    vkGetDeviceQueue(device->logicalDevice, indices.graphicsFamily.value(), 0, &device->queues.renderQueue);
+    vkGetDeviceQueue(device->logicalDevice, indices.presentFamily.value(), 0, &device->queues.presentQueue);
 }
 
 VulkanDevice* VulkanDevice::GetVulkanDevice()
@@ -115,13 +111,13 @@ bool VulkanDevice::checkDeviceSupportedExtensions(VkPhysicalDevice dev)
     return requiredExtensions.empty();
 }
 
-VulkanDevice::QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevice dev, VkSurfaceKHR surface)
+VulkanDevice::QueueFamilyIndices VulkanDevice::findQueueFamilies(VkSurfaceKHR surface)
 {
     // find render and presentation queue families
     uint32_t queueFamilyCount = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, NULL);
+    vkGetPhysicalDeviceQueueFamilyProperties(device->physicalDevice, &queueFamilyCount, NULL);
     std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
+    vkGetPhysicalDeviceQueueFamilyProperties(device->physicalDevice, &queueFamilyCount, queueFamilies.data());
 
     int i = 0;
     VkBool32 presentSupported = false;
@@ -129,18 +125,18 @@ VulkanDevice::QueueFamilyIndices VulkanDevice::findQueueFamilies(VkPhysicalDevic
     for (VkQueueFamilyProperties queueFamily : queueFamilies)
     {
         if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-            familyIndices.graphicsFamily = i;
+            device->familyIndices.graphicsFamily = i;
 
-        vkGetPhysicalDeviceSurfaceSupportKHR(dev, i, surface, &presentSupported);
+        vkGetPhysicalDeviceSurfaceSupportKHR(device->physicalDevice, i, surface, &presentSupported);
         if (presentSupported)
-            familyIndices.presentFamily = i;
+            device->familyIndices.presentFamily = i;
 
-        if (familyIndices.isComplete())
+        if (device->familyIndices.isComplete())
             break;
 
 
         i++;
     }
 
-    return familyIndices;
+    return device->familyIndices;
 }

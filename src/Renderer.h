@@ -27,6 +27,7 @@
 
 #include "VulkanDevice.h"
 #include "HelloWorldTriangle.h"
+#include "ModeledObject.h"
 
 class Renderer
 {

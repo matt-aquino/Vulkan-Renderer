@@ -15,11 +15,16 @@
 */
 
 #include "Model.h"
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
 
-Model::Model(std::string fileName, std::string imageName)
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
+Model::Model(std::string dir, std::string fileName, std::string imageName)
 {
-	loadModel(fileName);
-	loadTexture(imageName);
+	loadModel(dir, fileName);
+	loadTexture(dir + imageName);
 }
 
 
@@ -33,23 +38,84 @@ Model::~Model()
 	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), material.textureMemory, nullptr);
 }
 
-void Model::loadModel(std::string fileName)
+void Model::loadModel(std::string dir, std::string fileName)
 {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
 
-	tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, (MODELPATH + fileName).c_str());
+	if (tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, ("models/" + dir + fileName).c_str(), ("models/" + dir).c_str()))
+	{
+		std::unordered_map<ModelVertex, uint32_t> uniqueVertices{};
 
-	// TO DO: finish setting up Model class and work on presenting chest to screen
+		for (tinyobj::shape_t shape : shapes)
+		{
+			for (tinyobj::index_t index : shape.mesh.indices)
+			{
+				ModelVertex newVertex{};
+				newVertex.position = {
+					attrib.vertices[3 * index.vertex_index + 0],
+					attrib.vertices[3 * index.vertex_index + 1],
+					attrib.vertices[3 * index.vertex_index + 2]
+				};
 
+				newVertex.texcoord = {
+					attrib.texcoords[2 * index.texcoord_index + 0],
+					1.0f - attrib.texcoords[2 * index.texcoord_index + 1] // Vulkan Y-axis is flipped, so make sure we adjust textures
+				};
+
+				newVertex.normal = {
+					attrib.normals[3 * index.normal_index + 0],
+					attrib.normals[3 * index.normal_index + 1],
+					attrib.normals[3 * index.normal_index + 2]
+				};
+
+				// check if we've already seen this vertex or not
+				if (uniqueVertices.count(newVertex) == 0)
+				{
+					uniqueVertices[newVertex] = static_cast<uint32_t>(vertices.size());
+					vertices.push_back(newVertex);
+				}
+
+				indices.push_back(uniqueVertices[newVertex]);
+			}
+		}
+
+		// load in material
+		for (tinyobj::material_t mat : materials)
+		{
+			material.ambient = {
+				mat.ambient[0],
+				mat.ambient[1],
+				mat.ambient[2],
+			};
+
+			material.diffuse = {
+				mat.diffuse[0],
+				mat.diffuse[1],
+				mat.diffuse[2]
+			};
+
+			material.specular = {
+				mat.specular[0],
+				mat.specular[1],
+				mat.specular[2]
+			};
+
+			material.specularExponent = mat.shininess;
+		}
+	}
+
+	else
+		throw std::runtime_error("Failed to load model!");
+	
 }
 
 void Model::loadTexture(std::string imageName)
 {
 	int width, height, channels;
-	stbi_uc* pixels = stbi_load((MODELPATH + imageName).c_str(), &width, &height, &channels, STBI_rgb_alpha);
+	stbi_uc* pixels = stbi_load(("models/" + imageName).c_str(), &width, &height, &channels, STBI_rgb_alpha);
 	if (!pixels)
 		throw std::runtime_error("Failed to load texture image");
 
@@ -74,6 +140,7 @@ void Model::loadTexture(std::string imageName)
 	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBuffer, nullptr);
 	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, nullptr);
 }
+
 
 void Model::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
@@ -116,6 +183,42 @@ void Model::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
 
 	vkBindBufferMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), buffer, bufferMemory, 0); // if offset is not 0, it MUST be visible by memRequirements.alignment
 
+}
+
+void Model::copyBuffer(const VkCommandPool& pool, VkBuffer srcBuffer, VkBuffer dstBuffer, uint32_t size, VkQueue queue)
+{
+	VkCommandBuffer commandBuffer;
+	VkCommandBufferAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandBufferCount = 1;
+	allocInfo.commandPool = pool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	VkBufferCopy copyRegion{};
+	copyRegion.srcOffset = 0;
+	copyRegion.dstOffset = 0;
+	copyRegion.size = size;
+
+	vkAllocateCommandBuffers(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &allocInfo, &commandBuffer);
+
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+	vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+	
+	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(queue);
+	vkFreeCommandBuffers(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), pool, 1, &commandBuffer);
 }
 
 void Model::createImages(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
@@ -164,4 +267,78 @@ void Model::createImages(uint32_t width, uint32_t height, uint32_t depth, VkImag
 		throw std::runtime_error("failed to allocate image memory");
 
 	vkBindImageMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), image, imageMemory, 0);
+}
+
+void Model::createVertexBuffer(const VkCommandPool& commandPool)
+{
+	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+
+	// create a staging buffer to upload vertex data on GPU for high performance
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, vertices.data(), (size_t)bufferSize);
+	vkUnmapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory);
+
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer, vertexBufferMemory);
+
+	copyBuffer(commandPool, stagingBuffer, vertexBuffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+
+	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBuffer, nullptr);
+	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, nullptr);
+}
+
+void Model::createIndexBuffer(const VkCommandPool& commandPool)
+{
+	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+
+	// create a staging buffer to upload vertex data on GPU for high performance
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, indices.data(), (size_t)bufferSize);
+	vkUnmapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory);
+
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, indexBuffer, indexBufferMemory);
+
+	copyBuffer(commandPool, stagingBuffer, indexBuffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+
+	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBuffer, nullptr);
+	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, nullptr);
+}
+
+
+
+std::vector<ModelVertex> Model::getVertices()
+{
+	return vertices;
+}
+
+std::vector<uint32_t> Model::getIndices()
+{
+	return indices;
+}
+
+VkBuffer Model::getVertexBuffer()
+{
+	return vertexBuffer;
+}
+
+VkBuffer Model::getIndexBuffer()
+{
+	return indexBuffer;
 }

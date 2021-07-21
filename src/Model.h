@@ -18,34 +18,36 @@
 #define MODEL_H
 
 #include <vulkan/vulkan.h>
-#include <tiny_obj_loader.h>
 #include <string>
 #include <vector>
 #include "HelperStructs.h"
 #include "VulkanDevice.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-
-#define MODELPATH "../models/"
 
 class Model
 {
 public:
-	Model(std::string fileName, std::string imageName);
+	Model(std::string dir, std::string fileName, std::string imageName);
 	~Model();
 
-	
+	std::vector<ModelVertex> getVertices();
+	std::vector<uint32_t> getIndices();
+	VkBuffer getVertexBuffer();
+	VkBuffer getIndexBuffer();
+
+
+	void createVertexBuffer(const VkCommandPool& commandPool);
+	void createIndexBuffer(const VkCommandPool& commandPool);
 
 private:
-	void loadModel(std::string fileName);
+	void loadModel(std::string dir, std::string fileName);
 	void loadTexture(std::string imageName);
-
 
 	// ** Allocate a buffer of memory based on specifications **
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
 	
-	
+	void copyBuffer(const VkCommandPool& pool, VkBuffer srcBuffer, VkBuffer dstBuffer, uint32_t size, VkQueue queue);
+
 	void createImages(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
 
 	struct Material
@@ -58,6 +60,9 @@ private:
 		glm::vec3 specular;
 		float specularExponent;
 	} material;
+
+	std::vector<ModelVertex> vertices;
+	std::vector<uint32_t> indices;
 
 	VkBuffer vertexBuffer, indexBuffer;
 	VkDeviceMemory vertexBufferMemory, indexBufferMemory;

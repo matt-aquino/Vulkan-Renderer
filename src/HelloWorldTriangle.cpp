@@ -65,7 +65,7 @@ void HelloWorldTriangle::CreateScene()
 		VkBuffer buffers[] = { graphicsPipeline.vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, buffers, offsets);
-		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &graphicsPipeline.pushConstant);
+		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
 		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout, 0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
 
 		vkCmdDraw(commandBuffersList[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
@@ -196,7 +196,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	// create uniform matrices
 	graphicsPipeline.ubo.model = glm::mat4(1.0f);
 	graphicsPipeline.ubo.view = glm::translate(glm::mat4(1.0f), cameraPosition);
-	graphicsPipeline.pushConstant.projectionMatrix = glm::perspective(glm::radians(90.0f), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
+	pushConstants.projectionMatrix = glm::perspective(glm::radians(90.0f), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
 
 	// create descriptor sets for UBO
 	VkDescriptorSetLayoutBinding uboBinding = {};
@@ -281,7 +281,7 @@ void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
 
 	graphicsPipeline.ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	graphicsPipeline.ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
-	graphicsPipeline.pushConstant.projectionMatrix = glm::perspective(glm::radians(90.0f), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
+	pushConstants.projectionMatrix = glm::perspective(glm::radians(90.0f), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
 	
 	void* data;
 	vkMapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.uniformBuffersMemory[currentImage], 0, sizeof(UniformBufferObject), 0, &data);

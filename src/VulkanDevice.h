@@ -37,8 +37,8 @@ public:
 	VulkanDevice(VulkanDevice &other) = delete; // prevent cloning 
 	void operator=(const VulkanDevice&) = delete;
 
-	inline VkPhysicalDevice GetPhysicalDevice() { return physicalDevice; }
-	inline VkDevice GetLogicalDevice() { return logicalDevice; }
+	VkPhysicalDevice GetPhysicalDevice() { return physicalDevice; }
+	VkDevice GetLogicalDevice() { return logicalDevice; }
 	
 
 private:
@@ -58,7 +58,7 @@ private:
 	VkPhysicalDevice physicalDevice;
 	VkDevice logicalDevice;
 
-	static struct QueueFamilyIndices
+	struct QueueFamilyIndices
 	{
 		std::optional<uint32_t> graphicsFamily;
 		std::optional<uint32_t> presentFamily;
@@ -69,17 +69,17 @@ private:
 		}
 	} familyIndices;
 
-	static struct Queue
+	struct Queue
 	{
 		VkQueue renderQueue;
 		VkQueue presentQueue;
 	} queues;
 
-	static QueueFamilyIndices findQueueFamilies(VkPhysicalDevice dev, VkSurfaceKHR surface);
+	QueueFamilyIndices findQueueFamilies(VkSurfaceKHR surface);
 
 public:
-	inline static QueueFamilyIndices GetFamilyIndices() { return familyIndices; }
-	inline static Queue GetQueues() { return queues; }
+	QueueFamilyIndices GetFamilyIndices() { return familyIndices; }
+	Queue GetQueues() { return queues; }
 
 protected:
 
