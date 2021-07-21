@@ -148,5 +148,43 @@ struct Vertex
 	}
 };
 
+struct ModelVertex
+{
+	glm::vec3 position; 
+	glm::vec2 texcoord;
+	glm::vec3 normal;
+
+	static VkVertexInputBindingDescription getBindingDescription()
+	{
+		VkVertexInputBindingDescription bindDesc = {};
+		bindDesc.binding = 0;
+		bindDesc.stride = sizeof(ModelVertex);
+		bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return bindDesc;
+	}
+
+	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
+	{
+		std::array<VkVertexInputAttributeDescription, 3> attrDesc{};
+		attrDesc[0].binding = 0;
+		attrDesc[0].location = 0; // match the location within the shader
+		attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT; // match format within shader (float, vec2, vec3, vec4,)
+		attrDesc[0].offset = offsetof(ModelVertex, position);
+
+		attrDesc[1].binding = 0;
+		attrDesc[1].location = 1;
+		attrDesc[1].format = VK_FORMAT_R32G32_SFLOAT;
+		attrDesc[1].offset = offsetof(ModelVertex, texcoord);
+		
+		attrDesc[2].binding = 0;
+		attrDesc[2].location = 2;
+		attrDesc[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attrDesc[2].offset = offsetof(ModelVertex, normal);
+
+		return attrDesc;
+	}
+};
+
 
 #endif //!HELPERSTRUCTS_H

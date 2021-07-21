@@ -20,11 +20,9 @@ HelloWorldTriangle::HelloWorldTriangle()
 {
 }
 
-HelloWorldTriangle::HelloWorldTriangle(std::string name, const VkInstance& instance,
-	const VkSurfaceKHR& appSurface, const VulkanSwapChain& swapChain)
+HelloWorldTriangle::HelloWorldTriangle(std::string name, const VulkanSwapChain& swapChain)
 {
 	sceneName = name;
-	device = device->GetVulkanDevice(instance, appSurface);
 
 	CreateUniforms(swapChain);
 	CreateRenderPass(swapChain);
@@ -86,21 +84,21 @@ void HelloWorldTriangle::RecreateScene(const VulkanSwapChain& swapChain)
 	// destroy the whole pipeline and recreate for new swap chain
 	for (size_t i = 0; i < graphicsPipeline.framebuffers.size(); i++)
 	{
-		vkDestroyFramebuffer(device->logicalDevice, graphicsPipeline.framebuffers[i], nullptr);
+		vkDestroyFramebuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.framebuffers[i], nullptr);
 	}
 
-	vkFreeCommandBuffers(device->logicalDevice, commandPool, static_cast<uint32_t>(commandBuffersList.size()), commandBuffersList.data());
-	vkDestroyPipeline(device->logicalDevice, graphicsPipeline.pipeline, nullptr);
-	vkDestroyPipelineLayout(device->logicalDevice, graphicsPipeline.pipelineLayout, nullptr);
-	vkDestroyRenderPass(device->logicalDevice, graphicsPipeline.renderPass, nullptr);
+	vkFreeCommandBuffers(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), commandPool, static_cast<uint32_t>(commandBuffersList.size()), commandBuffersList.data());
+	vkDestroyPipeline(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.pipeline, nullptr);
+	vkDestroyPipelineLayout(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.pipelineLayout, nullptr);
+	vkDestroyRenderPass(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.renderPass, nullptr);
 	
 	size_t uniformBufferSize = graphicsPipeline.uniformBuffers.size();
 	for (size_t i = 0; i < uniformBufferSize; i++)
 	{
-		vkDestroyBuffer(device->logicalDevice, graphicsPipeline.uniformBuffers[i], nullptr);
-		vkFreeMemory(device->logicalDevice, graphicsPipeline.uniformBuffersMemory[i], nullptr);
+		vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.uniformBuffers[i], nullptr);
+		vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.uniformBuffersMemory[i], nullptr);
 	}
-	vkDestroyDescriptorPool(device->logicalDevice, graphicsPipeline.descriptorPool, nullptr);
+	vkDestroyDescriptorPool(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.descriptorPool, nullptr);
 
 	CreateUniforms(swapChain);
 	CreateRenderPass(swapChain);
@@ -122,7 +120,7 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 	*/
 
 	uint32_t imageIndex;
-	graphicsPipeline.result = vkAcquireNextImageKHR(device->logicalDevice, swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+	graphicsPipeline.result = vkAcquireNextImageKHR(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 	if (graphicsPipeline.result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
@@ -139,7 +137,7 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
 	{
-		vkWaitForFences(device->logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 	}
 
 	// mark image as now being in use by this frame
@@ -160,9 +158,9 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 	
-	vkResetFences(device->logicalDevice, 1, &inFlightFences[currentFrame]);
+	vkResetFences(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), 1, &inFlightFences[currentFrame]);
 
-	if (vkQueueSubmit(device->GetQueues().renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
+	if (vkQueueSubmit(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer!");
 
 	VkPresentInfoKHR presentInfo = {};
@@ -176,7 +174,7 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = nullptr;
 
-	graphicsPipeline.result = vkQueuePresentKHR(device->GetQueues().presentQueue, &presentInfo);
+	graphicsPipeline.result = vkQueuePresentKHR(VulkanDevice::GetVulkanDevice()->GetQueues().presentQueue, &presentInfo);
 
 	if (graphicsPipeline.result == VK_ERROR_OUT_OF_DATE_KHR || graphicsPipeline.result == VK_SUBOPTIMAL_KHR)
 		return VulkanReturnValues::VK_SWAPCHAIN_OUT_OF_DATE;
@@ -191,6 +189,10 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 
 void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 {
+	// Steps for Creating Uniform Buffers
+	// 	   1. Define your values
+	// 	   2. If using UBOs/SSBOs, create descriptor sets
+	// 			a. create a uniform buffer for each frame in swap chain
 	// create uniform matrices
 	graphicsPipeline.ubo.model = glm::mat4(1.0f);
 	graphicsPipeline.ubo.view = glm::translate(glm::mat4(1.0f), cameraPosition);
@@ -209,7 +211,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	layoutInfo.bindingCount = 1;
 	layoutInfo.pBindings = &uboBinding;
 
-	if (vkCreateDescriptorSetLayout(device->logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
+	if (vkCreateDescriptorSetLayout(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set layout!");
 
 	size_t swapChainSize = swapChain.swapChainImages.size();
@@ -235,7 +237,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	poolInfo.pPoolSizes = &poolSize;
 	poolInfo.maxSets = static_cast<uint32_t>(swapChainSize);
 
-	if (vkCreateDescriptorPool(device->logicalDevice, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
+	if (vkCreateDescriptorPool(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor pool");
 
 	std::vector<VkDescriptorSetLayout> layout(swapChainSize, graphicsPipeline.descriptorSetLayout);
@@ -246,7 +248,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	allocInfo.pSetLayouts = layout.data();
 	graphicsPipeline.descriptorSets.resize(swapChainSize);
 
-	if (vkAllocateDescriptorSets(device->logicalDevice, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
+	if (vkAllocateDescriptorSets(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate descriptor sets");
 
 	for (size_t i = 0; i < swapChainSize; i++)
@@ -266,7 +268,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 		descriptorWrite.pBufferInfo = &bufferInfo;
 		descriptorWrite.pImageInfo = nullptr; // used for descriptors that refer to image data
 		descriptorWrite.pTexelBufferView = nullptr; // used for descriptors that refer to buffer views
-		vkUpdateDescriptorSets(device->logicalDevice, 1, &descriptorWrite, 0, nullptr);
+		vkUpdateDescriptorSets(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), 1, &descriptorWrite, 0, nullptr);
 	}
 }
 
@@ -282,9 +284,9 @@ void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
 	graphicsPipeline.pushConstant.projectionMatrix = glm::perspective(glm::radians(90.0f), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
 	
 	void* data;
-	vkMapMemory(device->logicalDevice, graphicsPipeline.uniformBuffersMemory[currentImage], 0, sizeof(UniformBufferObject), 0, &data);
+	vkMapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.uniformBuffersMemory[currentImage], 0, sizeof(UniformBufferObject), 0, &data);
 	memcpy(data, &graphicsPipeline.ubo, sizeof(UniformBufferObject));
-	vkUnmapMemory(device->logicalDevice, graphicsPipeline.uniformBuffersMemory[currentImage]);
+	vkUnmapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.uniformBuffersMemory[currentImage]);
 	
 }
 
@@ -292,32 +294,32 @@ void HelloWorldTriangle::DestroyScene()
 {
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		vkDestroySemaphore(device->logicalDevice, renderCompleteSemaphores[i], nullptr);
-		vkDestroySemaphore(device->logicalDevice, presentCompleteSemaphores[i], nullptr);
-		vkDestroyFence(device->logicalDevice, inFlightFences[i], nullptr);
+		vkDestroySemaphore(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), renderCompleteSemaphores[i], nullptr);
+		vkDestroySemaphore(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), presentCompleteSemaphores[i], nullptr);
+		vkDestroyFence(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), inFlightFences[i], nullptr);
 	}
-	vkDestroyCommandPool(device->logicalDevice, commandPool, nullptr);
+	vkDestroyCommandPool(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), commandPool, nullptr);
 
 	for (VkFramebuffer fb : graphicsPipeline.framebuffers)
 	{
-		vkDestroyFramebuffer(device->logicalDevice, fb, nullptr);
+		vkDestroyFramebuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), fb, nullptr);
 	}
 
 
 	size_t uniformBufferSize = graphicsPipeline.uniformBuffers.size();
 	for (size_t i = 0; i < uniformBufferSize; i++)
 	{
-		vkDestroyBuffer(device->logicalDevice, graphicsPipeline.uniformBuffers[i], nullptr);
-		vkFreeMemory(device->logicalDevice, graphicsPipeline.uniformBuffersMemory[i], nullptr);
+		vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.uniformBuffers[i], nullptr);
+		vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.uniformBuffersMemory[i], nullptr);
 	}
 
-	vkDestroyDescriptorPool(device->logicalDevice, graphicsPipeline.descriptorPool, nullptr);
-	vkDestroyDescriptorSetLayout(device->logicalDevice, graphicsPipeline.descriptorSetLayout, nullptr);
-	vkDestroyPipeline(device->logicalDevice, graphicsPipeline.pipeline, nullptr);
-	vkDestroyPipelineLayout(device->logicalDevice, graphicsPipeline.pipelineLayout, nullptr);
-	vkDestroyRenderPass(device->logicalDevice, graphicsPipeline.renderPass, nullptr);
-	vkDestroyBuffer(device->logicalDevice, graphicsPipeline.vertexBuffer, nullptr);
-	vkFreeMemory(device->logicalDevice, graphicsPipeline.vertexBufferMemory, nullptr);
+	vkDestroyDescriptorPool(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.descriptorPool, nullptr);
+	vkDestroyDescriptorSetLayout(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.descriptorSetLayout, nullptr);
+	vkDestroyPipeline(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.pipeline, nullptr);
+	vkDestroyPipelineLayout(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.pipelineLayout, nullptr);
+	vkDestroyRenderPass(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.renderPass, nullptr);
+	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.vertexBuffer, nullptr);
+	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), graphicsPipeline.vertexBufferMemory, nullptr);
 }
 
 void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
@@ -454,7 +456,7 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	layoutInfo.setLayoutCount = 1;
 	layoutInfo.pSetLayouts = &graphicsPipeline.descriptorSetLayout;
 
-	graphicsPipeline.result = vkCreatePipelineLayout(device->logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
+	graphicsPipeline.result = vkCreatePipelineLayout(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
 	if (graphicsPipeline.result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create pipeline layout");
 
@@ -480,12 +482,12 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	graphicsPipelineInfo.basePipelineIndex = -1;
 
 	// this is breaking...
-	graphicsPipeline.result = vkCreateGraphicsPipelines(device->logicalDevice, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline.pipeline);
+	graphicsPipeline.result = vkCreateGraphicsPipelines(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline.pipeline);
 	if (graphicsPipeline.result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics pipeline");
 
-	vkDestroyShaderModule(device->logicalDevice, vertShaderModule, nullptr);
-	vkDestroyShaderModule(device->logicalDevice, fragShaderModule, nullptr);
+	vkDestroyShaderModule(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), vertShaderModule, nullptr);
+	vkDestroyShaderModule(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), fragShaderModule, nullptr);
 }
 
 void HelloWorldTriangle::CreateRenderPass(const VulkanSwapChain& swapChain)
@@ -526,7 +528,7 @@ void HelloWorldTriangle::CreateRenderPass(const VulkanSwapChain& swapChain)
 	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 	dependency.dependencyFlags = 0;
 
-	VkRenderPassCreateInfo renderPassInfo;
+	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassInfo.pNext = nullptr;
 	renderPassInfo.flags = 0;
@@ -537,7 +539,7 @@ void HelloWorldTriangle::CreateRenderPass(const VulkanSwapChain& swapChain)
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;	
 
-	graphicsPipeline.result = vkCreateRenderPass(device->logicalDevice, &renderPassInfo, nullptr, &graphicsPipeline.renderPass);
+	graphicsPipeline.result = vkCreateRenderPass(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &renderPassInfo, nullptr, &graphicsPipeline.renderPass);
 	if (graphicsPipeline.result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create render pass");
 }
@@ -559,7 +561,7 @@ void HelloWorldTriangle::CreateFramebuffers(const VulkanSwapChain& swapChain)
 		framebufferInfo.height = swapChain.swapChainDimensions.height;
 		framebufferInfo.layers = 1;
 
-		if (vkCreateFramebuffer(device->logicalDevice, &framebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
+		if (vkCreateFramebuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &framebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create one or more framebuffers");
 	}
 }
@@ -569,9 +571,9 @@ void HelloWorldTriangle::CreateCommandPool()
 {
 	VkCommandPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.queueFamilyIndex = device->GetFamilyIndices().graphicsFamily.value();
+	poolInfo.queueFamilyIndex = VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value();
 
-	if (vkCreateCommandPool(device->logicalDevice, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+	if (vkCreateCommandPool(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create command pool");
 
 	commandBuffersList.resize(graphicsPipeline.framebuffers.size());
@@ -582,7 +584,7 @@ void HelloWorldTriangle::CreateCommandPool()
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = (uint32_t)commandBuffersList.size();
 
-	if (vkAllocateCommandBuffers(device->logicalDevice, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate command buffers");
 }
 
@@ -602,9 +604,9 @@ void HelloWorldTriangle::CreateSyncObjects(const VulkanSwapChain& swapChain)
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		if (vkCreateSemaphore(device->logicalDevice, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(device->logicalDevice, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(device->logicalDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+		if (vkCreateSemaphore(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
 				throw std::runtime_error("Failed to create sync objects for a frame");
 	}
 
@@ -623,21 +625,16 @@ void HelloWorldTriangle::CreateVertexBuffer()
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(device->logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+	vkMapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, vertices.data(), (size_t)bufferSize);
-	vkUnmapMemory(device->logicalDevice, stagingBufferMemory);
+	vkUnmapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory);
 
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, graphicsPipeline.vertexBuffer, graphicsPipeline.vertexBufferMemory);
 
-	copyBuffer(stagingBuffer, graphicsPipeline.vertexBuffer, bufferSize, device->GetQueues().renderQueue);
+	copyBuffer(stagingBuffer, graphicsPipeline.vertexBuffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
-	vkDestroyBuffer(device->logicalDevice, stagingBuffer, nullptr);
-	vkFreeMemory(device->logicalDevice, stagingBufferMemory, nullptr);
-}
-
-void HelloWorldTriangle::createImages(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
-{
-
+	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBuffer, nullptr);
+	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, nullptr);
 }

@@ -25,7 +25,7 @@ class HelloWorldTriangle : public VulkanScene
 
 public:
 	HelloWorldTriangle();
-	HelloWorldTriangle(std::string name, const VkInstance& instance, const VkSurfaceKHR& appSurface, const VulkanSwapChain& swapChain);
+	HelloWorldTriangle(std::string name, const VulkanSwapChain& swapChain);
 
 	void CreateScene() override;
 	void RecreateScene(const VulkanSwapChain& swapChain) override;
@@ -57,16 +57,11 @@ private:
 	// ** Update uniform variables for shaders **
 	void UpdateUniforms(uint32_t currentImage);
 
-	// ** Helper function to create images
-	void createImages(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
-	
 
 	VulkanGraphicsPipeline graphicsPipeline;
 	const glm::vec3 cameraPosition = { 0.0f, 0.0f, -5.0f };
 
 	size_t currentFrame = 0;
-	const int MAX_FRAMES_IN_FLIGHT = 3; // we need 1 fence per frame. since we're triple buffering, that means 3 fences
-
 
 	const std::vector<Vertex> vertices = {
 		{{0.0f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}},

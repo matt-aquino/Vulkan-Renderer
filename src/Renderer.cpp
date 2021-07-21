@@ -22,7 +22,7 @@ Renderer::Renderer()
     CreateVKInstance();
     CreateVKSurface();
 
-    device = device->GetVulkanDevice(instance, renderSurface);
+    device->CreateVulkanDevice(instance, renderSurface);
 
     CreateSwapChain();
     CreateImages();

@@ -45,7 +45,6 @@ public:
 	std::string sceneName;
 
 protected:
-	VulkanDevice *device;
 
 	// ** Allocate memory to a command pool for command buffers **
 	virtual void CreateCommandPool() = 0;
@@ -59,6 +58,17 @@ protected:
 	// ** Copy an existing buffer into another **
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkQueue queue);
 
+	// ** Copy buffer data into an image **
+	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t depth);
+
+	// ** Transition images layouts **
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+
+	// ** submit single time commands on command buffers **
+	VkCommandBuffer beginSingleTimeCommands();
+
+	// ** end single time commands **
+	void endSingleTimeCommands(VkCommandBuffer cmdBuffer, VkQueue queue);
 
 	// Command Buffers
 	VkCommandPool commandPool;
@@ -67,6 +77,7 @@ protected:
 	// Synchronzation Objects
 	std::vector<VkSemaphore> renderCompleteSemaphores, presentCompleteSemaphores;
 	std::vector<VkFence> inFlightFences, imagesInFlight;
+	const int MAX_FRAMES_IN_FLIGHT = 3; // we need 1 fence per frame. since we're triple buffering, that means 3 fences
 
 
 };

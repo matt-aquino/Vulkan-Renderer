@@ -24,27 +24,39 @@
 #include <set>
 #include <optional>
 
+// VulkanDevice follows the Singleton pattern, which means to only allow one instance to be created
+// at runtime. All classes that include VulkanDevice may call upon GetVulkanDevice to retrieve the 
+// instance when needed.
+
 class VulkanDevice
 {
 public:
 
-	// grab device instance; create one if not initialized
-	static VulkanDevice* GetVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSurface);
+	static VulkanDevice* GetVulkanDevice();
 
 	VulkanDevice(VulkanDevice &other) = delete; // prevent cloning 
 	void operator=(const VulkanDevice&) = delete;
 
-	static VkPhysicalDevice physicalDevice;
-	static VkDevice logicalDevice;
+	inline VkPhysicalDevice GetPhysicalDevice() { return physicalDevice; }
+	inline VkDevice GetLogicalDevice() { return logicalDevice; }
+	
 
 private:
+
+	// since the Renderer class performs the main app loop, I decided to make it a friend
+	// of VulkanDevice so that it may invoke CreateVulkanDevice at startup
+	friend class Renderer;
+	void CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSurface);
 
 	VulkanDevice();
 	~VulkanDevice();
 
 	// helper functions 
 	bool checkDeviceSupportedExtensions(VkPhysicalDevice dev);
+
 	
+	VkPhysicalDevice physicalDevice;
+	VkDevice logicalDevice;
 
 	static struct QueueFamilyIndices
 	{
