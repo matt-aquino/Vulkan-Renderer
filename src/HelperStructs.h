@@ -43,16 +43,6 @@ struct VulkanSwapChain
 	std::vector<VkPresentModeKHR> surfacePresentModes;
 };
 
-// Ways to Pass uniforms into shaders
-
-// UBOs and SSBOs are for dynamic data
-// since we have small amounts of data, we opt to use UBOs
-struct UniformBufferObject
-{
-	glm::mat4 model; 
-	glm::mat4 view;
-};
-
 struct VulkanGraphicsPipeline
 {
 	VkPipelineLayout pipelineLayout;
@@ -68,8 +58,8 @@ struct VulkanGraphicsPipeline
 	VkViewport viewport;
 	VkRect2D scissors;
 
-	VkBuffer vertexBuffer;
-	VkDeviceMemory vertexBufferMemory;
+	VkBuffer vertexBuffer, indexBuffer;
+	VkDeviceMemory vertexBufferMemory, indexBufferMemory;
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
 
@@ -77,8 +67,6 @@ struct VulkanGraphicsPipeline
 	size_t shaderFileSize;
 
 	VkResult result;
-
-	UniformBufferObject ubo;
 
 	std::vector<char> readShaderFile(const std::string& file)
 	{
@@ -200,5 +188,12 @@ namespace std
 	};
 }
 
+struct Material
+{
+	alignas(16)glm::vec3 ambient{};
+	alignas(16)glm::vec3 diffuse{};
+	alignas(16)glm::vec3 specular{};
+	alignas(4)float specularExponent = 0;
+};
 
 #endif //!HELPERSTRUCTS_H

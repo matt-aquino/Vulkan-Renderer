@@ -23,19 +23,31 @@
 
 Model::Model(std::string dir, std::string fileName, std::string imageName)
 {
-	loadModel(dir, fileName);
-	loadTexture(dir + imageName);
+	directory = dir;
+	file = fileName;
+	image = imageName;
 }
 
 
 Model::~Model()
 {
-	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), vertexBuffer, nullptr);
-	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), indexBuffer, nullptr);
-	vkDestroyImage(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), material.texture, nullptr);
-	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), vertexBufferMemory, nullptr);
-	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), indexBufferMemory, nullptr);
-	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), material.textureMemory, nullptr);
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	vkDestroyBuffer(device, vertexBuffer, nullptr);
+	vkDestroyBuffer(device, indexBuffer, nullptr);
+	vkDestroySampler(device, textureSampler, nullptr);
+	vkDestroyImageView(device, textureView, nullptr);
+	vkDestroyImage(device, texture, nullptr);
+	vkFreeMemory(device, vertexBufferMemory, nullptr);
+	vkFreeMemory(device, indexBufferMemory, nullptr);
+	vkFreeMemory(device, textureMemory, nullptr);
+}
+
+void Model::CreateModel(const VkCommandPool& commandPool)
+{
+	// figure out how to order creation of the model
+	// once we do that, figure out texturing for the chest
+	loadModel(directory, file);
+	loadTexture(image, commandPool);
 }
 
 void Model::loadModel(std::string dir, std::string fileName)
@@ -45,6 +57,7 @@ void Model::loadModel(std::string dir, std::string fileName)
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
 
+	// load in vertex and material data
 	if (tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, ("models/" + dir + fileName).c_str(), ("models/" + dir).c_str()))
 	{
 		std::unordered_map<ModelVertex, uint32_t> uniqueVertices{};
@@ -112,8 +125,10 @@ void Model::loadModel(std::string dir, std::string fileName)
 	
 }
 
-void Model::loadTexture(std::string imageName)
+void Model::loadTexture(std::string imageName, const VkCommandPool& commandPool)
 {
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
 	int width, height, channels;
 	stbi_uc* pixels = stbi_load(("models/" + imageName).c_str(), &width, &height, &channels, STBI_rgb_alpha);
 	if (!pixels)
@@ -128,34 +143,43 @@ void Model::loadTexture(std::string imageName)
 		stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, 0, imageSize, 0, &data);
+	vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
 	memcpy(data, pixels, static_cast<size_t>(imageSize));
-	vkUnmapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory);
+	vkUnmapMemory(device, stagingBufferMemory);
 
 	stbi_image_free(pixels);
 
 	createImages(width, height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, material.texture, material.textureMemory);
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture, textureMemory);
 
-	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBuffer, nullptr);
-	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, nullptr);
+	transitionImageLayout(commandPool, texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copyBufferToImage(commandPool, stagingBuffer, texture, static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1);
+	transitionImageLayout(commandPool, texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+	createImageViews(texture, VK_FORMAT_R8G8B8A8_SRGB);
+	createTextureSampler();
 }
 
 
 void Model::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
 	VkBufferCreateInfo bufferInfo = {};
 	bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	bufferInfo.size = size;
 	bufferInfo.usage = usage;
 	bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // buffers can be shared between queue families just like images
 
-	if (vkCreateBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
+	if (vkCreateBuffer(device, &bufferInfo, nullptr, &buffer) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create vertex buffer");
 
 	// assign memory to buffer
 	VkMemoryRequirements memRequirements;
-	vkGetBufferMemoryRequirements(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), buffer, &memRequirements);
+	vkGetBufferMemoryRequirements(device, buffer, &memRequirements);
 
 	VkPhysicalDeviceMemoryProperties memProperties;
 	vkGetPhysicalDeviceMemoryProperties(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), &memProperties);
@@ -178,15 +202,17 @@ void Model::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPr
 	// for future reference: THIS IS BAD TO DO FOR INDIVIDUAL BUFFERS (for larger applications)
 	// max number of simultaneous memory allocations is limited by maxMemoryAllocationCount in physicalDevice
 	// best practice is to create a custom allocator that splits up single allocations among many different objects using the offset param
-	if (vkAllocateMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
+	if (vkAllocateMemory(device, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate vertex buffer memory");
 
-	vkBindBufferMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), buffer, bufferMemory, 0); // if offset is not 0, it MUST be visible by memRequirements.alignment
+	vkBindBufferMemory(device, buffer, bufferMemory, 0); // if offset is not 0, it MUST be visible by memRequirements.alignment
 
 }
 
 void Model::copyBuffer(const VkCommandPool& pool, VkBuffer srcBuffer, VkBuffer dstBuffer, uint32_t size, VkQueue queue)
 {
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
 	VkCommandBuffer commandBuffer;
 	VkCommandBufferAllocateInfo allocInfo{};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -203,7 +229,7 @@ void Model::copyBuffer(const VkCommandPool& pool, VkBuffer srcBuffer, VkBuffer d
 	copyRegion.dstOffset = 0;
 	copyRegion.size = size;
 
-	vkAllocateCommandBuffers(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &allocInfo, &commandBuffer);
+	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
 
 	vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
@@ -218,11 +244,13 @@ void Model::copyBuffer(const VkCommandPool& pool, VkBuffer srcBuffer, VkBuffer d
 	
 	vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
 	vkQueueWaitIdle(queue);
-	vkFreeCommandBuffers(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), pool, 1, &commandBuffer);
+	vkFreeCommandBuffers(device, pool, 1, &commandBuffer);
 }
 
 void Model::createImages(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory)
 {
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
 	VkImageCreateInfo imageInfo = {};
 	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 	imageInfo.imageType = imageType;
@@ -238,12 +266,12 @@ void Model::createImages(uint32_t width, uint32_t height, uint32_t depth, VkImag
 	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	if (vkCreateImage(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &imageInfo, nullptr, &image) != VK_SUCCESS)
+	if (vkCreateImage(device, &imageInfo, nullptr, &image) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create image!");
 
 	// find memory type
 	VkMemoryRequirements memRequirements;
-	vkGetImageMemoryRequirements(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), image, &memRequirements);
+	vkGetImageMemoryRequirements(device, image, &memRequirements);
 
 	VkPhysicalDeviceMemoryProperties memProperties;
 	vkGetPhysicalDeviceMemoryProperties(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), &memProperties);
@@ -263,14 +291,174 @@ void Model::createImages(uint32_t width, uint32_t height, uint32_t depth, VkImag
 	allocInfo.allocationSize = memRequirements.size;
 	allocInfo.memoryTypeIndex = typeIndex;
 
-	if (vkAllocateMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
+	if (vkAllocateMemory(device, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS)
 		throw std::runtime_error("failed to allocate image memory");
 
-	vkBindImageMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), image, imageMemory, 0);
+	vkBindImageMemory(device, image, imageMemory, 0);
+}
+
+void Model::createImageViews(VkImage image, VkFormat format)
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
+	VkImageViewCreateInfo viewInfo{};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	viewInfo.image = image;
+	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	viewInfo.format = format;
+	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = 1;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = 1;
+
+	if (vkCreateImageView(device, &viewInfo, nullptr, &textureView) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create image view");
+}
+
+void Model::createTextureSampler()
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
+	VkSamplerCreateInfo samplerInfo{};
+	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	samplerInfo.magFilter = VK_FILTER_LINEAR;
+	samplerInfo.minFilter = VK_FILTER_LINEAR;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.anisotropyEnable = VK_TRUE;
+	samplerInfo.maxAnisotropy = 4.0f;
+	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	samplerInfo.unnormalizedCoordinates = VK_FALSE;
+	samplerInfo.compareEnable = VK_FALSE;
+	samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.minLod = 0.0f;
+	samplerInfo.maxLod = 0.0f;
+
+	if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create texture sampler");
+}
+
+void Model::transitionImageLayout(const VkCommandPool& commandPool, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
+	VkCommandBufferAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandBufferCount = 1;
+	allocInfo.commandPool = commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+	VkCommandBuffer commandBuffer;
+	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = oldLayout;
+	barrier.newLayout = newLayout;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = image;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+	barrier.srcAccessMask = 0;
+	barrier.dstAccessMask = 0;
+
+	VkPipelineStageFlags srcStage, dstStage;
+
+	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+	{
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}
+
+	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+
+	else
+	{
+		throw std::invalid_argument("Unsupported layout transition!");
+	}
+
+	vkCmdPipelineBarrier(commandBuffer, 0, 0, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	vkQueueSubmit(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
+}
+
+void Model::copyBufferToImage(const VkCommandPool& commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t depth)
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
+	VkCommandBufferAllocateInfo allocInfo{};
+	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocInfo.commandBufferCount = 1;
+	allocInfo.commandPool = commandPool;
+	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+	VkCommandBuffer commandBuffer;
+	vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer);
+
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+	VkBufferImageCopy region{};
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.layerCount = 1;
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = { width, height, depth };
+
+	vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+	vkEndCommandBuffer(commandBuffer);
+
+	VkSubmitInfo submitInfo{};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	vkQueueSubmit(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	vkFreeCommandBuffers(device, commandPool, 1, &commandBuffer);
 }
 
 void Model::createVertexBuffer(const VkCommandPool& commandPool)
 {
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
 	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 	// create a staging buffer to upload vertex data on GPU for high performance
@@ -281,9 +469,9 @@ void Model::createVertexBuffer(const VkCommandPool& commandPool)
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
+	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, vertices.data(), (size_t)bufferSize);
-	vkUnmapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory);
+	vkUnmapMemory(device, stagingBufferMemory);
 
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
@@ -291,12 +479,13 @@ void Model::createVertexBuffer(const VkCommandPool& commandPool)
 
 	copyBuffer(commandPool, stagingBuffer, vertexBuffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
-	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBuffer, nullptr);
-	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, nullptr);
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
 void Model::createIndexBuffer(const VkCommandPool& commandPool)
 {
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
 
 	// create a staging buffer to upload vertex data on GPU for high performance
@@ -307,9 +496,9 @@ void Model::createIndexBuffer(const VkCommandPool& commandPool)
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, 0, bufferSize, 0, &data);
+	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, indices.data(), (size_t)bufferSize);
-	vkUnmapMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory);
+	vkUnmapMemory(device, stagingBufferMemory);
 
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
@@ -317,28 +506,6 @@ void Model::createIndexBuffer(const VkCommandPool& commandPool)
 
 	copyBuffer(commandPool, stagingBuffer, indexBuffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
-	vkDestroyBuffer(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBuffer, nullptr);
-	vkFreeMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), stagingBufferMemory, nullptr);
-}
-
-
-
-std::vector<ModelVertex> Model::getVertices()
-{
-	return vertices;
-}
-
-std::vector<uint32_t> Model::getIndices()
-{
-	return indices;
-}
-
-VkBuffer Model::getVertexBuffer()
-{
-	return vertexBuffer;
-}
-
-VkBuffer Model::getIndexBuffer()
-{
-	return indexBuffer;
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }

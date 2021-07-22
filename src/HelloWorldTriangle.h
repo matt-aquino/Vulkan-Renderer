@@ -63,6 +63,13 @@ private:
 
 	size_t currentFrame = 0;
 
+	
+	struct UniformBufferObject
+	{
+		glm::mat4 model;
+		glm::mat4 view;
+	} ubo;
+
 	struct PushConstants
 	{
 		glm::mat4 projectionMatrix;

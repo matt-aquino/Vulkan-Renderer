@@ -53,6 +53,7 @@ void VulkanDevice::CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSu
 
     vkGetPhysicalDeviceProperties(device->physicalDevice, &properties);
     vkGetPhysicalDeviceFeatures(device->physicalDevice, &features);
+    features.samplerAnisotropy = VK_TRUE;
 
     QueueFamilyIndices indices = findQueueFamilies(appSurface);
 

@@ -41,25 +41,30 @@ public:
 private:
 	Model *object;
 
+	// TO DO: split up functions to separately create UBO, samplers, etc
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);
 	void CreateRenderPass(const VulkanSwapChain& swapChain);
 	void CreateFramebuffer(const VulkanSwapChain& swapChain);
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);
 	void CreateUniforms(const VulkanSwapChain& swapChain);
-	void UpdateUniforms();
+	void UpdateUniforms(uint32_t currentFrame);
+	void CreateBuffers();
+	void CreateDescriptorSets(const VulkanSwapChain& swapChain);
 
 	void CreateCommandPool() override;
+	void CreateCommandBuffers();
 
 	VulkanGraphicsPipeline graphicsPipeline;
 
-	struct PushConstants
+	struct UniformBufferObject
 	{
 		alignas(16)glm::mat4 model;
 		alignas(16)glm::mat4 view;
 		alignas(16)glm::mat4 projection;
-	}pushConstants;
+		alignas(16)glm::vec3 cameraPosition;
+	} ubo;
 
-	glm::vec3 cameraPosition;
+	
 	size_t currentFrame = 0;
 };
 
