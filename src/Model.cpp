@@ -89,8 +89,7 @@ void Model::loadModel(std::string dir, std::string fileName)
 				{
 					uniqueVertices[newVertex] = static_cast<uint32_t>(vertices.size());
 					vertices.push_back(newVertex);
-				}
-
+				}				
 				indices.push_back(uniqueVertices[newVertex]);
 			}
 		}
@@ -324,9 +323,9 @@ void Model::createTextureSampler()
 	samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 	samplerInfo.magFilter = VK_FILTER_LINEAR;
 	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerInfo.anisotropyEnable = VK_TRUE;
 	samplerInfo.maxAnisotropy = 4.0f;
 	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
@@ -372,8 +371,6 @@ void Model::transitionImageLayout(const VkCommandPool& commandPool, VkImage imag
 	barrier.subresourceRange.levelCount = 1;
 	barrier.subresourceRange.baseArrayLayer = 0;
 	barrier.subresourceRange.layerCount = 1;
-	barrier.srcAccessMask = 0;
-	barrier.dstAccessMask = 0;
 
 	VkPipelineStageFlags srcStage, dstStage;
 
@@ -398,7 +395,7 @@ void Model::transitionImageLayout(const VkCommandPool& commandPool, VkImage imag
 		throw std::invalid_argument("Unsupported layout transition!");
 	}
 
-	vkCmdPipelineBarrier(commandBuffer, 0, 0, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+	vkCmdPipelineBarrier(commandBuffer, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 	vkEndCommandBuffer(commandBuffer);
 
 	VkSubmitInfo submitInfo{};

@@ -26,19 +26,19 @@ void main()
 	vec3 albedo = texture(textureSampler, outTexcoord).rgb;
 
 	// ambient
-	vec3 ambient = vec3(0.1f) * material.ambient;
+	vec3 ambient = albedo * material.ambient;
 	
 	// diffuse
 	vec3 lightDirection = normalize(lightPosition - fragPos);
 	float d = max(dot(outNormal, lightDirection), 0.0f);
-	vec3 diffuse = lightColor * (d * material.diffuse);
+	vec3 diffuse = albedo * (d * material.diffuse);
 
 	// specular
-	vec3 reflection = reflect(-lightPosition, outNormal);
+	vec3 reflection = reflect(-lightDirection, outNormal);
 	float spec = pow(max(dot(viewDir, reflection), 0.0f), material.shininess);
-	vec3 specular = lightColor * (spec * material.specular);
+	vec3 specular = albedo * lightColor * (spec * material.specular);
 
 	vec3 lighting = ambient + diffuse + specular;
 
-	fragColor = vec4(albedo + lighting, 1.0f);
+	fragColor = vec4(lighting, 1.0f);
 }

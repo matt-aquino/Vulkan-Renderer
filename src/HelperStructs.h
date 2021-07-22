@@ -54,6 +54,9 @@ struct VulkanGraphicsPipeline
 
 	VkRenderPass renderPass;
 	std::vector<VkFramebuffer> framebuffers;
+	VkImage depthStencilBuffer;
+	VkImageView depthStencilBufferView;
+	VkDeviceMemory depthStencilBufferMemory;
 
 	VkViewport viewport;
 	VkRect2D scissors;

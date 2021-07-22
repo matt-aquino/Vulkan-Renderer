@@ -76,9 +76,12 @@ void ModeledObject::CreateScene()
 		renderPassInfo.renderArea.offset = { 0, 0 };
 		renderPassInfo.renderArea.extent = graphicsPipeline.scissors.extent;
 
-		VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
-		renderPassInfo.clearValueCount = 1;
-		renderPassInfo.pClearValues = &clearColor;
+		VkClearValue clearColors[2] = {};
+		clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+		clearColors[1].depthStencil = { 1.0f, 0 };
+
+		renderPassInfo.clearValueCount = 2;
+		renderPassInfo.pClearValues = clearColors;
 
 		vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
@@ -107,12 +110,23 @@ void ModeledObject::CreateScene()
 
 void ModeledObject::RecreateScene(const VulkanSwapChain& swapChain)
 {
-	CreateUniforms(swapChain);
+	delete object;
+	object = new Model("Zelda Chest/", "Medium_Chest.obj", "Zelda Chest/MediMM00.png");
+
+	object->CreateModel(commandPool);
+
 	CreateRenderPass(swapChain);
-	CreateGraphicsPipeline(swapChain);
+	CreateUniforms(swapChain);
 	CreateFramebuffer(swapChain);
+	CreateCommandBuffers();
 	CreateSyncObjects(swapChain);
-	CreateCommandPool();
+
+	object->createVertexBuffer(commandPool);
+	object->createIndexBuffer(commandPool);
+	CreateDescriptorSets(swapChain);
+
+	CreateGraphicsPipeline(swapChain);
+
 	CreateScene();
 }
 
@@ -211,6 +225,9 @@ void ModeledObject::DestroyScene()
 		vkFreeMemory(device, graphicsPipeline.uniformBuffersMemory[i], nullptr);
 	}
 
+	vkDestroyImageView(device, graphicsPipeline.depthStencilBufferView, nullptr);
+	vkDestroyImage(device, graphicsPipeline.depthStencilBuffer, nullptr);
+	vkFreeMemory(device, graphicsPipeline.depthStencilBufferMemory, nullptr);
 	vkDestroyDescriptorPool(device, graphicsPipeline.descriptorPool, nullptr);
 	vkDestroyDescriptorSetLayout(device, graphicsPipeline.descriptorSetLayout, nullptr);
 	vkDestroyPipeline(device, graphicsPipeline.pipeline, nullptr);
@@ -336,6 +353,17 @@ void ModeledObject::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	colorBlendingInfo.blendConstants[3] = 0.0f;
 #pragma endregion 
 
+#pragma region DEPTH_STENCIL
+	VkPipelineDepthStencilStateCreateInfo depthStencilInfo{};
+	depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depthStencilInfo.depthTestEnable = VK_TRUE;
+	depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+	depthStencilInfo.depthWriteEnable = VK_TRUE;
+	depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
+	depthStencilInfo.stencilTestEnable = VK_FALSE;
+
+#pragma endregion
+
 #pragma region PUSH_CONSTANTS
 	// push constants for object material
 	VkPushConstantRange materialPush;
@@ -373,6 +401,7 @@ void ModeledObject::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	graphicsPipelineInfo.pRasterizationState = &rasterizerInfo; // rasterizer
 	graphicsPipelineInfo.pMultisampleState = &multisamplingInfo; // multisampling
 	graphicsPipelineInfo.pColorBlendState = &colorBlendingInfo; // color blending
+	graphicsPipelineInfo.pDepthStencilState = &depthStencilInfo;
 	graphicsPipelineInfo.layout = graphicsPipeline.pipelineLayout;
 	graphicsPipelineInfo.renderPass = graphicsPipeline.renderPass;
 	graphicsPipelineInfo.subpass = 0;
@@ -405,31 +434,40 @@ void ModeledObject::CreateRenderPass(const VulkanSwapChain& swapChain)
 	colorAttachmentReference.attachment = 0; 
 	colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-	VkSubpassDescription subpass;
+	VkAttachmentDescription depthAttachment;
+	depthAttachment.format = VK_FORMAT_D24_UNORM_S8_UINT;
+	depthAttachment.flags = 0;
+	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkAttachmentReference depthAttachmentReference;
+	depthAttachmentReference.attachment = 1;
+	depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass{};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.flags = 0;
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &colorAttachmentReference;
-	subpass.inputAttachmentCount = 0;
-	subpass.pInputAttachments = nullptr;
-	subpass.preserveAttachmentCount = 0;
-	subpass.pPreserveAttachments = nullptr;
-	subpass.pDepthStencilAttachment = nullptr;
-	subpass.pResolveAttachments = nullptr;
+	subpass.pDepthStencilAttachment = &depthAttachmentReference;
 
-	VkSubpassDependency dependency;
+	VkSubpassDependency dependency{};
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
 	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 	dependency.srcAccessMask = 0;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	dependency.dependencyFlags = 0;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
+	VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
 	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	renderPassInfo.attachmentCount = 1;
-	renderPassInfo.pAttachments = &colorAttachment;
+	renderPassInfo.attachmentCount = 2;
+	renderPassInfo.pAttachments = attachments;
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 	renderPassInfo.dependencyCount = 1;
@@ -444,23 +482,31 @@ void ModeledObject::CreateFramebuffer(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	graphicsPipeline.framebuffers.resize(swapChain.swapChainImageViews.size());
+	VkExtent2D dim = swapChain.swapChainDimensions;
+
+
+	createImage(dim.width, dim.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+	VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, graphicsPipeline.depthStencilBuffer, graphicsPipeline.depthStencilBufferMemory);
+
+	createImageView(graphicsPipeline.depthStencilBuffer, graphicsPipeline.depthStencilBufferView, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_VIEW_TYPE_2D);
 
 	for (size_t i = 0; i < swapChain.swapChainImageViews.size(); i++)
 	{
-		VkImageView attachments[] = { swapChain.swapChainImageViews[i] };
+		VkImageView attachments[] = { swapChain.swapChainImageViews[i], graphicsPipeline.depthStencilBufferView};
 
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		framebufferInfo.renderPass = graphicsPipeline.renderPass;
-		framebufferInfo.attachmentCount = 1;
+		framebufferInfo.attachmentCount = 2;
 		framebufferInfo.pAttachments = attachments;
-		framebufferInfo.width = swapChain.swapChainDimensions.width;
-		framebufferInfo.height = swapChain.swapChainDimensions.height;
+		framebufferInfo.width = dim.width;
+		framebufferInfo.height = dim.height;
 		framebufferInfo.layers = 1;
 
 		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create one or more framebuffers");
 	}
+
 }
 
 void ModeledObject::CreateSyncObjects(const VulkanSwapChain& swapChain)

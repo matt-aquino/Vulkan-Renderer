@@ -70,6 +70,11 @@ protected:
 	// ** end single time commands **
 	void endSingleTimeCommands(VkCommandBuffer cmdBuffer, VkQueue queue);
 
+	void createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& memory);
+
+	void createImageView(VkImage& image, VkImageView& imageView, VkFormat format, VkImageAspectFlags aspectFlags, VkImageViewType viewType);
+
+
 	// Command Buffers
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> commandBuffersList;

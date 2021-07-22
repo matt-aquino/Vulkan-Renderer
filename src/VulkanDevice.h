@@ -40,6 +40,7 @@ public:
 	VkPhysicalDevice GetPhysicalDevice() { return physicalDevice; }
 	VkDevice GetLogicalDevice() { return logicalDevice; }
 	
+	VkFormat findSupportedFormats(std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
 
 private:
 
@@ -53,7 +54,6 @@ private:
 
 	// helper functions 
 	bool checkDeviceSupportedExtensions(VkPhysicalDevice dev);
-
 	
 	VkPhysicalDevice physicalDevice;
 	VkDevice logicalDevice;
