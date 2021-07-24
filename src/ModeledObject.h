@@ -34,7 +34,7 @@ public:
 
 	VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) override;
 
-	void DestroyScene() override;
+	void DestroyScene(bool isRecreation) override;
 
 
 

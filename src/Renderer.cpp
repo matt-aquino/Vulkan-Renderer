@@ -31,8 +31,10 @@ Renderer::Renderer()
     // Create our scenes
     HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
     ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
+    Particles* scene3 = new Particles("Particles", vulkanSwapChain);
     scenesList.push_back(scene1);
     scenesList.push_back(scene2);
+    scenesList.push_back(scene3);
 }
 
 
@@ -209,7 +211,7 @@ void Renderer::CleanUp()
     // Clear all scenes
     for (VulkanScene* scene : scenesList)
     {
-        scene->DestroyScene();
+        scene->DestroyScene(false);
         delete scene;
     }
 
@@ -400,8 +402,9 @@ void Renderer::RecreateSwapChain()
     CreateSwapChain();
     CreateImages();
 
-    // clean up entire graphics pipeline and swap chain
-    scenesList[sceneIndex]->RecreateScene(vulkanSwapChain);
+    // recreate every scene 
+    for (int i = 0; i < scenesList.size(); i++)
+        scenesList[i]->RecreateScene(vulkanSwapChain);
 }
 
 bool Renderer::checkValidationLayerSupport()

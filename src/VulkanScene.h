@@ -40,7 +40,7 @@ public:
 	virtual VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) = 0;
 	
 	// ** Clean up resources ** 
-	virtual void DestroyScene() = 0;
+	virtual void DestroyScene(bool isRecreation) = 0;
 
 	std::string sceneName;
 

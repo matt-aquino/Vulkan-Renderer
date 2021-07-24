@@ -1,0 +1,40 @@
+#version 460
+
+struct Particle
+{
+	vec3 position;
+	vec3 velocity;
+	vec3 color;
+};
+
+layout(set = 0, binding = 0) buffer ParticlesBuffer
+{
+	Particle particles[];
+};
+
+layout(constant_id = 0) const int WORKGROUP = 64; // define our ID for our specialization info
+
+layout(local_size_x_id = 0, local_size_y = 1, local_size_z = 1) in;
+void main()
+{
+	const vec3 gravity = vec3(0.0f, -9.8f, 0.0f);
+	const float dt = 0.1f;
+	uint gid = gl_GlobalInvocationID.x;
+
+	vec3 pos = particles[gid].position;
+	vec3 vel = particles[gid].velocity;
+
+	// yay physics
+	vec3 newPos = pos + (vel * dt) + (0.5f * dt * dt * gravity);
+	vec3 newVel = vel + (gravity * dt);
+
+	// keep particles contained on screen
+	if (newPos.x > 0.95 || newPos.x < -0.95 ||
+        newPos.y > 0.95 || newPos.y < -0.95)
+    {
+        newPos = -2.0 * newVel + newPos * 0.05;
+    }
+
+	particles[gid].position = newPos;
+	particles[gid].velocity = newVel;
+}

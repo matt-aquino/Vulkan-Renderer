@@ -30,7 +30,7 @@ public:
 	void CreateScene() override;
 	void RecreateScene(const VulkanSwapChain& swapChain) override;
 	VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) override;
-	void DestroyScene() override;
+	void DestroyScene(bool isRecreation) override;
 
 private:
 	// ** Create all aspects of the graphics pipeline **

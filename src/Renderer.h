@@ -26,8 +26,12 @@
 #include <algorithm>
 
 #include "VulkanDevice.h"
+
+// scene includes
 #include "HelloWorldTriangle.h"
 #include "ModeledObject.h"
+#include "Particles.h"
+
 
 class Renderer
 {

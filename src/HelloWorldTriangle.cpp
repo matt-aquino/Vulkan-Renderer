@@ -82,27 +82,8 @@ void HelloWorldTriangle::CreateScene()
 
 void HelloWorldTriangle::RecreateScene(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
-	// destroy the whole pipeline and recreate for new swap chain
-	for (size_t i = 0; i < graphicsPipeline.framebuffers.size(); i++)
-	{
-		vkDestroyFramebuffer(device, graphicsPipeline.framebuffers[i], nullptr);
-	}
-
-	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffersList.size()), commandBuffersList.data());
-	vkDestroyPipeline(device, graphicsPipeline.pipeline, nullptr);
-	vkDestroyPipelineLayout(device, graphicsPipeline.pipelineLayout, nullptr);
-	vkDestroyRenderPass(device, graphicsPipeline.renderPass, nullptr);
+	DestroyScene(true);
 	
-	size_t uniformBufferSize = graphicsPipeline.uniformBuffers.size();
-	for (size_t i = 0; i < uniformBufferSize; i++)
-	{
-		vkDestroyBuffer(device, graphicsPipeline.uniformBuffers[i], nullptr);
-		vkFreeMemory(device, graphicsPipeline.uniformBuffersMemory[i], nullptr);
-	}
-	vkDestroyDescriptorPool(device, graphicsPipeline.descriptorPool, nullptr);
-
 	CreateUniforms(swapChain);
 	CreateRenderPass(swapChain);
 	CreateGraphicsPipeline(swapChain);
@@ -298,38 +279,26 @@ void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
 	
 }
 
-void HelloWorldTriangle::DestroyScene() 
+void HelloWorldTriangle::DestroyScene(bool isRecreation) 
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+	graphicsPipeline.destroyGraphicsPipeline(device);
+
+	size_t size = commandBuffersList.size();
+	vkFreeCommandBuffers(device, commandPool, size, commandBuffersList.data());
+	
+	if (!isRecreation)
 	{
-		vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
-		vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
-		vkDestroyFence(device, inFlightFences[i], nullptr);
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
+			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
+			vkDestroyFence(device, inFlightFences[i], nullptr);
+		}
+
+		vkDestroyCommandPool(device, commandPool, nullptr);
 	}
-	vkDestroyCommandPool(device, commandPool, nullptr);
-
-	for (VkFramebuffer fb : graphicsPipeline.framebuffers)
-	{
-		vkDestroyFramebuffer(device, fb, nullptr);
-	}
-
-
-	size_t uniformBufferSize = graphicsPipeline.uniformBuffers.size();
-	for (size_t i = 0; i < uniformBufferSize; i++)
-	{
-		vkDestroyBuffer(device, graphicsPipeline.uniformBuffers[i], nullptr);
-		vkFreeMemory(device, graphicsPipeline.uniformBuffersMemory[i], nullptr);
-	}
-
-	vkDestroyDescriptorPool(device, graphicsPipeline.descriptorPool, nullptr);
-	vkDestroyDescriptorSetLayout(device, graphicsPipeline.descriptorSetLayout, nullptr);
-	vkDestroyPipeline(device, graphicsPipeline.pipeline, nullptr);
-	vkDestroyPipelineLayout(device, graphicsPipeline.pipelineLayout, nullptr);
-	vkDestroyRenderPass(device, graphicsPipeline.renderPass, nullptr);
-	vkDestroyBuffer(device, graphicsPipeline.vertexBuffer, nullptr);
-	vkFreeMemory(device, graphicsPipeline.vertexBufferMemory, nullptr);
 }
 
 void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
@@ -656,4 +625,6 @@ void HelloWorldTriangle::CreateVertexBuffer()
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+	graphicsPipeline.isVertexBufferEmpty = false;
 }
