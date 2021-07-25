@@ -18,8 +18,9 @@ Particles::Particles(std::string name, const VulkanSwapChain& swapChain)
 	CreateFramebuffers(swapChain);
 	CreateCommandBuffers();
 	CreateSyncObjects(swapChain);
-	CreateDescriptorSets(swapChain);
+	CreateComputeDescriptorSets(swapChain);
 	CreateComputePipeline();
+	CreateGraphicsDescriptorSets(swapChain);
 	CreateGraphicsPipeline(swapChain);
 
 	CreateScene();
@@ -95,12 +96,16 @@ void Particles::RecreateScene(const VulkanSwapChain& swapChain)
 {
 	DestroyScene(true);
 
+	particles.clear();
+	
+	CreateParticles();
 	CreatePushConstants(swapChain);
 	CreateRenderPass(swapChain);
 	CreateFramebuffers(swapChain);
 	CreateCommandBuffers();
-	CreateDescriptorSets(swapChain);
+	CreateComputeDescriptorSets(swapChain);
 	CreateComputePipeline();
+	CreateGraphicsDescriptorSets(swapChain);
 	CreateGraphicsPipeline(swapChain);
 
 	CreateScene();
@@ -194,27 +199,17 @@ void Particles::DestroyScene(bool isRecreation)
 
 	if (!isRecreation)
 	{
-
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
 			vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
 			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
 			vkDestroyFence(device, inFlightFences[i], nullptr);
 		}
-		computePipeline.destroyComputePipeline(device);
+
 		vkDestroyCommandPool(device, commandPool, nullptr);
 	}
-}
-
-void Particles::CreateCommandPool()
-{
-	VkCommandPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.queueFamilyIndex = VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value();
-
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create command pool");
+		
+	computePipeline.destroyComputePipeline(device);
 }
 
 void Particles::CreateCommandBuffers()
@@ -652,7 +647,7 @@ void Particles::CreateSyncObjects(const VulkanSwapChain& swapChain)
 	computeFinishedBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 }
 
-void Particles::CreateDescriptorSets(const VulkanSwapChain& swapChain)
+void Particles::CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
@@ -661,7 +656,7 @@ void Particles::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	ssboBinding.binding = 0;
 	ssboBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	ssboBinding.descriptorCount = 1;
-	ssboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_COMPUTE_BIT; // needs to be accessed by both compute and vertex stages
+	ssboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; 
 	ssboBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutBinding bindings[] = { ssboBinding };
@@ -669,9 +664,6 @@ void Particles::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 	layoutInfo.bindingCount = 1;
 	layoutInfo.pBindings = bindings;
-
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &computePipeline.descriptorSetLayout) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create compute descriptor set layout!");
 
 	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics descriptor set layout");
@@ -696,6 +688,69 @@ void Particles::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 
 	std::vector<VkDescriptorSetLayout> layout(swapChainSize, graphicsPipeline.descriptorSetLayout);
 
+	// create descriptor sets
+	VkDescriptorSetAllocateInfo graphicsAllocInfo{};
+	graphicsAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	graphicsAllocInfo.descriptorPool = graphicsPipeline.descriptorPool;
+	graphicsAllocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainSize);
+	graphicsAllocInfo.pSetLayouts = layout.data();
+
+	graphicsPipeline.descriptorSets.resize(swapChainSize);
+
+	if (vkAllocateDescriptorSets(device, &graphicsAllocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
+		throw std::runtime_error("Failed to allocate graphics descriptor sets");
+
+	// write descriptors
+	for (size_t i = 0; i < swapChainSize; i++)
+	{
+		VkDescriptorBufferInfo bufferInfo = {};
+		bufferInfo.buffer =	computePipeline.storageBuffer;
+		bufferInfo.offset = 0;
+		bufferInfo.range = sizeof(Particle) * MAX_NUM_PARTICLES;
+
+		VkWriteDescriptorSet descriptorWrite{};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = graphicsPipeline.descriptorSets[i];
+		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstArrayElement = 0;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		descriptorWrite.pBufferInfo = &bufferInfo;
+		descriptorWrite.pImageInfo = nullptr; // used for descriptors that refer to image data
+		descriptorWrite.pTexelBufferView = nullptr; // used for descriptors that refer to buffer view
+
+		vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+	}
+	
+}
+
+void Particles::CreateComputeDescriptorSets(const VulkanSwapChain& swapChain)
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
+	// create storage buffer binding for particles
+	VkDescriptorSetLayoutBinding ssboBinding = {};
+	ssboBinding.binding = 0;
+	ssboBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	ssboBinding.descriptorCount = 1;
+	ssboBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT; // needs to be accessed by both compute and vertex stages
+	ssboBinding.pImmutableSamplers = nullptr;
+
+	VkDescriptorSetLayoutBinding bindings[] = { ssboBinding };
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = 1;
+	layoutInfo.pBindings = bindings;
+
+	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &computePipeline.descriptorSetLayout) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create compute descriptor set layout!");
+
+	// create descriptor pool for graphics pipeline
+
+	VkDescriptorPoolSize poolSize{};
+	poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	poolSize.descriptorCount = 1;
+
 	// create descriptor pool for compute pipeline
 	VkDescriptorPoolCreateInfo computePoolInfo{};
 	computePoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -707,57 +762,34 @@ void Particles::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		throw std::runtime_error("Failed to create compute descriptor pool");
 
 	// create descriptor sets
-	VkDescriptorSetAllocateInfo graphicsAllocInfo{}, computeAllocInfo{};
-	graphicsAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-	graphicsAllocInfo.descriptorPool = graphicsPipeline.descriptorPool;
-	graphicsAllocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainSize);
-	graphicsAllocInfo.pSetLayouts = layout.data();
+	VkDescriptorSetAllocateInfo computeAllocInfo{};
 
 	computeAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	computeAllocInfo.descriptorPool = computePipeline.descriptorPool;
 	computeAllocInfo.descriptorSetCount = 1;
 	computeAllocInfo.pSetLayouts = &computePipeline.descriptorSetLayout;
 
-	graphicsPipeline.descriptorSets.resize(swapChainSize);
-
-	if (vkAllocateDescriptorSets(device, &graphicsAllocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
-		throw std::runtime_error("Failed to allocate graphics descriptor sets");
 
 	if (vkAllocateDescriptorSets(device, &computeAllocInfo, &computePipeline.descriptorSet) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocated compute descriptor sets");
 
-	// write descriptors
-	for (size_t i = 0; i < swapChainSize; i++)
-	{
-		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer =	computePipeline.storageBuffer;
-		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(Particle) * MAX_NUM_PARTICLES;
+	VkDescriptorBufferInfo bufferInfo = {};
+	bufferInfo.buffer = computePipeline.storageBuffer;
+	bufferInfo.offset = 0;
+	bufferInfo.range = sizeof(Particle) * MAX_NUM_PARTICLES;
 
-		// one descriptor set for the compute pipeline
-		std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
-		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[0].dstSet = computePipeline.descriptorSet;
-		descriptorWrites[0].dstBinding = 0;
-		descriptorWrites[0].dstArrayElement = 0;
-		descriptorWrites[0].descriptorCount = 1;
-		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		descriptorWrites[0].pBufferInfo = &bufferInfo;
-		descriptorWrites[0].pImageInfo = nullptr; // used for descriptors that refer to image data
-		descriptorWrites[0].pTexelBufferView = nullptr; // used for descriptors that refer to buffer view
+	// one descriptor set for the compute pipeline
+	VkWriteDescriptorSet descriptorWrite{};
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = computePipeline.descriptorSet;
+	descriptorWrite.dstBinding = 0;
+	descriptorWrite.dstArrayElement = 0;
+	descriptorWrite.descriptorCount = 1;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	descriptorWrite.pBufferInfo = &bufferInfo;
+	descriptorWrite.pImageInfo = nullptr; // used for descriptors that refer to image data
+	descriptorWrite.pTexelBufferView = nullptr; // used for descriptors that refer to buffer view
 
-		// one descriptor set for graphics pipeline
-		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[1].dstSet = graphicsPipeline.descriptorSets[i];
-		descriptorWrites[1].dstBinding = 0;
-		descriptorWrites[1].dstArrayElement = 0;
-		descriptorWrites[1].descriptorCount = 1;
-		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		descriptorWrites[1].pBufferInfo = &bufferInfo;
-		descriptorWrites[1].pImageInfo = nullptr; // used for descriptors that refer to image data
-		descriptorWrites[1].pTexelBufferView = nullptr; // used for descriptors that refer to buffer view
 
-		vkUpdateDescriptorSets(device, 2, descriptorWrites.data(), 0, nullptr);
-	}
-	
+	vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 }

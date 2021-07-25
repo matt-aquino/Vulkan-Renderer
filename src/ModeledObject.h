@@ -51,7 +51,6 @@ private:
 	void CreateBuffers();
 	void CreateDescriptorSets(const VulkanSwapChain& swapChain);
 
-	void CreateCommandPool() override;
 	void CreateCommandBuffers();
 
 	VulkanGraphicsPipeline graphicsPipeline;

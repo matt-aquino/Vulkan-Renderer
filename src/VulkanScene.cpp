@@ -11,6 +11,17 @@ VulkanScene::~VulkanScene()
 
 }
 
+void VulkanScene::CreateCommandPool()
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
+	VkCommandPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.queueFamilyIndex = VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value();
+
+	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create command pool");
+}
 
 void VulkanScene::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {

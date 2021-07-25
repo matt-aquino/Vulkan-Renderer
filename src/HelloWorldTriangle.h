@@ -42,8 +42,8 @@ private:
 	// ** Create the framebuffers used for rendering **
 	void CreateFramebuffers(const VulkanSwapChain& swapChain);
 
-	// ** Allocate memory to a command pool for command buffers **
-	void CreateCommandPool() override;
+
+	void CreateCommandBuffers();
 
 	// ** Create the synchronization object - semaphores, fences **
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);

@@ -55,9 +55,6 @@ public:
 
 private:
 
-	// Devices
-	VulkanDevice* device;
-
 	// Rendering
 	SDL_Window* appWindow;
 	VkSurfaceKHR renderSurface;

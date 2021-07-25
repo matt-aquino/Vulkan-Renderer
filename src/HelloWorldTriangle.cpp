@@ -30,6 +30,7 @@ HelloWorldTriangle::HelloWorldTriangle(std::string name, const VulkanSwapChain& 
 	CreateFramebuffers(swapChain);
 	CreateSyncObjects(swapChain);
 	CreateCommandPool();
+	CreateCommandBuffers();
 	CreateVertexBuffer();
 	CreateScene();
 }
@@ -88,8 +89,8 @@ void HelloWorldTriangle::RecreateScene(const VulkanSwapChain& swapChain)
 	CreateRenderPass(swapChain);
 	CreateGraphicsPipeline(swapChain);
 	CreateFramebuffers(swapChain);
+	CreateCommandBuffers();
 	CreateVertexBuffer();
-	CreateCommandPool();
 	CreateScene();
 }
 
@@ -282,7 +283,6 @@ void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
 void HelloWorldTriangle::DestroyScene(bool isRecreation) 
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
 	graphicsPipeline.destroyGraphicsPipeline(device);
 
 	size_t size = commandBuffersList.size();
@@ -296,7 +296,6 @@ void HelloWorldTriangle::DestroyScene(bool isRecreation)
 			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
 			vkDestroyFence(device, inFlightFences[i], nullptr);
 		}
-
 		vkDestroyCommandPool(device, commandPool, nullptr);
 	}
 }
@@ -549,17 +548,9 @@ void HelloWorldTriangle::CreateFramebuffers(const VulkanSwapChain& swapChain)
 }
 
 
-void HelloWorldTriangle::CreateCommandPool()
+void HelloWorldTriangle::CreateCommandBuffers()
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
-	VkCommandPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.queueFamilyIndex = VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value();
-
-	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create command pool");
-
 	commandBuffersList.resize(graphicsPipeline.framebuffers.size());
 
 	VkCommandBufferAllocateInfo allocInfo = {};

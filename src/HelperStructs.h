@@ -126,7 +126,6 @@ struct VulkanGraphicsPipeline
 			vkFreeMemory(device, depthStencilBufferMemory, nullptr);
 		}
 		
-		
 		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 		vkDestroyPipeline(device, pipeline, nullptr);

@@ -120,7 +120,6 @@ void ModeledObject::RecreateScene(const VulkanSwapChain& swapChain)
 	CreateFramebuffer(swapChain);
 	CreateCommandBuffers();
 	CreateDescriptorSets(swapChain);
-
 	CreateGraphicsPipeline(swapChain);
 
 	CreateScene();
@@ -215,7 +214,8 @@ void ModeledObject::DestroyScene(bool isRecreation)
 			vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
 			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
 			vkDestroyFence(device, inFlightFences[i], nullptr);
-		}
+		}	
+
 		vkDestroyCommandPool(device, commandPool, nullptr);
 		delete object;
 	}
@@ -598,17 +598,6 @@ void ModeledObject::UpdateUniforms(uint32_t currentFrame)
 	vkMapMemory(device, graphicsPipeline.uniformBuffersMemory[currentFrame], 0, sizeof(UniformBufferObject), 0, &data);
 	memcpy(data, &ubo, sizeof(UniformBufferObject));
 	vkUnmapMemory(device, graphicsPipeline.uniformBuffersMemory[currentFrame]);
-}
-
-void ModeledObject::CreateCommandPool()
-{
-	VkCommandPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.queueFamilyIndex = VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value();
-
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create command pool");
 }
 
 void ModeledObject::CreateCommandBuffers()

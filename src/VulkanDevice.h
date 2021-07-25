@@ -48,6 +48,7 @@ private:
 	// of VulkanDevice so that it may invoke CreateVulkanDevice at startup
 	friend class Renderer;
 	void CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSurface);
+	void DeleteLogicalDevice();
 
 	VulkanDevice();
 	~VulkanDevice();

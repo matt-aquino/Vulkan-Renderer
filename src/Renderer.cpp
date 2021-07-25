@@ -151,7 +151,7 @@ void Renderer::RunApp()
                 case SDL_SCANCODE_LEFT:
                     if (sceneIndex == 0)
                         sceneIndex = scenesList.size() - 1;
-
+                    
                     else
                         sceneIndex--;
 
@@ -225,7 +225,9 @@ void Renderer::CleanUp()
     }
 
     vkDestroySwapchainKHR(VulkanDevice::GetVulkanDevice()->logicalDevice, vulkanSwapChain.swapChain, nullptr);
-    vkDestroyDevice(VulkanDevice::GetVulkanDevice()->logicalDevice, nullptr);
+
+    VulkanDevice::GetVulkanDevice()->DeleteLogicalDevice();
+
     vkDestroySurfaceKHR(instance, renderSurface, NULL);
     vkDestroyInstance(instance, NULL);
 
@@ -402,7 +404,7 @@ void Renderer::RecreateSwapChain()
     CreateSwapChain();
     CreateImages();
 
-    // recreate every scene 
+    // all framebuffers are rendered useless now, so recreate them with the new swap chain
     for (int i = 0; i < scenesList.size(); i++)
         scenesList[i]->RecreateScene(vulkanSwapChain);
 }

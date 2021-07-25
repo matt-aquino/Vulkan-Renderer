@@ -18,7 +18,6 @@ public:
 
 
 private:
-	void CreateCommandPool();
 	void CreateCommandBuffers();
 	void CreateParticles();
 	void CreateRenderPass(const VulkanSwapChain& swapChain);
@@ -26,7 +25,8 @@ private:
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);
 	void CreateComputePipeline();
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);
-	void CreateDescriptorSets(const VulkanSwapChain& swapChain);
+	void CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain);
+	void CreateComputeDescriptorSets(const VulkanSwapChain& swapChain);
 	void CreatePushConstants(const VulkanSwapChain& swapChain);
 
 	uint32_t currentFrame = 0;

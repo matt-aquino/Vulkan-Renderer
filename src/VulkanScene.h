@@ -47,7 +47,7 @@ public:
 protected:
 
 	// ** Allocate memory to a command pool for command buffers **
-	virtual void CreateCommandPool() = 0;
+	void CreateCommandPool();
 
 	// ** Read shader files and create the shader modules used in a pipeline **
 	VkShaderModule CreateShaderModules(const std::vector<char>& code);
