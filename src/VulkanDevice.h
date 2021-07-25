@@ -63,6 +63,7 @@ private:
 	{
 		std::optional<uint32_t> graphicsFamily;
 		std::optional<uint32_t> presentFamily;
+		//std::optional<uint32_t> computeFamily;
 
 		bool isComplete()
 		{
@@ -74,6 +75,7 @@ private:
 	{
 		VkQueue renderQueue;
 		VkQueue presentQueue;
+		//VkQueue computeQueue;
 	} queues;
 
 	QueueFamilyIndices findQueueFamilies(VkSurfaceKHR surface);

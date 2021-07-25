@@ -12,7 +12,7 @@ Particles::Particles(std::string name, const VulkanSwapChain& swapChain)
 	srand(time(NULL)); // seed random number generator
 
 	CreateCommandPool();
-	CreateParticles();
+	CreateParticles(false);
 	CreatePushConstants(swapChain);
 	CreateRenderPass(swapChain);
 	CreateFramebuffers(swapChain);
@@ -61,15 +61,29 @@ void Particles::CreateScene()
 
 		// wait until vertex shader invocations from previous frame are over
 		// to avoid overwriting the vertex buffer
-		vkCmdPipelineBarrier(commandBuffersList[i], VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 0, nullptr);
+		vkCmdPipelineBarrier(
+			commandBuffersList[i], 
+			VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+			0, 
+			0, nullptr, 
+			0, nullptr, 
+			0, nullptr);
 
 		// bind compute pipeline and dispatch compute shader to calculate particle positions
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipeline);
-		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipelineLayout, 0, 1, &computePipeline.descriptorSet, 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipelineLayout, 
+			0, 1, &computePipeline.descriptorSet, 0, nullptr);
 		vkCmdDispatch(commandBuffersList[i], WORK_GROUP_SIZE, 1, 1);
 
-		// vertex shader must wait until compute shader is finished calculating all particles
-		vkCmdPipelineBarrier(commandBuffersList[i], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 0, 1, &computeFinishedBarrier, 0, nullptr, 0, nullptr);
+		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+		
+		// vertex shader MUST WAIT until compute shader is finished calculating all particles
+		vkCmdPipelineBarrier(commandBuffersList[i], 
+			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 
+			0, 
+			0, nullptr, 
+			1, &computeFinishedBarrier, 
+			0, nullptr);
 
 		// bind graphics pipeline and begin render pass to draw particles to framebuffers
 		vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -96,9 +110,7 @@ void Particles::RecreateScene(const VulkanSwapChain& swapChain)
 {
 	DestroyScene(true);
 
-	particles.clear();
-	
-	CreateParticles();
+	CreateParticles(true);
 	CreatePushConstants(swapChain);
 	CreateRenderPass(swapChain);
 	CreateFramebuffers(swapChain);
@@ -164,6 +176,27 @@ VulkanReturnValues Particles::RunScene(const VulkanSwapChain& swapChain)
 	if (vkQueueSubmit(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer!");
 
+
+	// read back particle data
+	VkDeviceSize size = sizeof(particles[0]) * MAX_NUM_PARTICLES;
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+
+	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer, stagingBufferMemory);
+
+	copyBuffer(computePipeline.storageBuffer, stagingBuffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+
+	void* data;
+	vkMapMemory(device, stagingBufferMemory, 0, size, 0, &data);
+	memcpy(particles.data(), data, (size_t)size);
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
@@ -227,41 +260,48 @@ void Particles::CreateCommandBuffers()
 		throw std::runtime_error("Failed to allocate command buffers");
 }
 
-void Particles::CreateParticles()
+void Particles::CreateParticles(bool isRecreation)
 {
-	// randomly fill particle data
-	for (int i = 0; i < MAX_NUM_PARTICLES; i++)
+	// don't recreate all the particles from scratch
+	// simply recreate the buffer and reinput the data
+	if (!isRecreation)
 	{
-		glm::vec3 position = {
-			std::rand() % 5,
-			std::rand() % 5,
-			std::rand() % 5,
-		};
+		// randomly fill particle data
+		for (int i = 0; i < MAX_NUM_PARTICLES; i++)
+		{
+			glm::vec3 position = {
+				std::rand() % 5,
+				std::rand() % 5,
+				std::rand() % 5,
+			};
 
-		glm::vec3 velocity = {
-			std::rand() % 5,
-			std::rand() % 5,
-			std::rand() % 5,
-		};
+			glm::vec3 velocity = {
+				std::rand() % 5,
+				std::rand() % 5,
+				std::rand() % 5,
+			};
 
-		// grab random RGB ranged from 0.0f - 1.0f
-		glm::vec3 color = {
-			(float)((std::rand() % 255) / 255.0f),
-			(float)((std::rand() % 255) / 255.0f),
-			(float)((std::rand() % 255) / 255.0f)
-		};
+			// grab random RGB ranged from 0.0f - 1.0f
+			glm::vec3 color = {
+				(float)((std::rand() % 255) / 255.0f),
+				(float)((std::rand() % 255) / 255.0f),
+				(float)((std::rand() % 255) / 255.0f)
+			};
 
-		Particle newParticle = { position, velocity, color };
-		particles.push_back(newParticle);
+			Particle newParticle = { position, velocity, color };
+			particles.push_back(newParticle);
+		}
+
 	}
-
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
 	VkDeviceSize size = sizeof(particles[0]) * particles.size();
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
 
-	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
+	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+		stagingBuffer, stagingBufferMemory);
 
 	// map particle data to storage buffer
 	void* data;
@@ -269,8 +309,10 @@ void Particles::CreateParticles()
 	memcpy(data, particles.data(), (size_t)size);
 	vkUnmapMemory(device, stagingBufferMemory);
 	
-	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, computePipeline.storageBuffer, computePipeline.storageBufferMemory);
+	// since we'll be reading this data back, we need to make sure the CPU can see it 
+	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+		computePipeline.storageBuffer, computePipeline.storageBufferMemory);
 
 	copyBuffer(stagingBuffer, computePipeline.storageBuffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
@@ -408,16 +450,9 @@ void Particles::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 
 #pragma region VERTEX_INPUT_STATE
 
-	//VkVertexInputBindingDescription bindingDescription = Particle::getBindingDescription();
-	//std::array<VkVertexInputAttributeDescription, 3> attributeDescription = Particle::getAttributeDescriptions();
-
 	// ** Vertex Input State **
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	//vertexInputInfo.vertexBindingDescriptionCount = 1;
-	//vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-	//vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescription.size());
-	//vertexInputInfo.pVertexAttributeDescriptions = attributeDescription.data();
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
 	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -567,7 +602,7 @@ void Particles::CreateComputePipeline()
 	VkShaderModule compShaderModule = CreateShaderModules(compShaderCode);
 
 	// vulkan doesnt allow the GL_ARB_compute_variable_group_size extension,
-	// so we need to use specialization constants to set it at runtime
+	// so we need to use specialization constants to set work group size at runtime
 	const VkSpecializationMapEntry entries[] =
 	{
 		{
@@ -641,8 +676,13 @@ void Particles::CreateSyncObjects(const VulkanSwapChain& swapChain)
 			throw std::runtime_error("Failed to create sync objects for a frame");
 	}
 
-	computeFinishedBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+	computeFinishedBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 	computeFinishedBarrier.pNext = nullptr;
+	computeFinishedBarrier.buffer = computePipeline.storageBuffer;
+	computeFinishedBarrier.size = sizeof(Particle) * MAX_NUM_PARTICLES;
+	computeFinishedBarrier.offset = 0;
+	computeFinishedBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;// VulkanDevice::GetVulkanDevice()->GetFamilyIndices().computeFamily.value();
+	computeFinishedBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;// VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value();
 	computeFinishedBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 	computeFinishedBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 }

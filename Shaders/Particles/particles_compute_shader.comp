@@ -7,7 +7,7 @@ struct Particle
 	vec3 color;
 };
 
-layout(set = 0, binding = 0) buffer ParticlesBuffer
+layout(binding = 0) buffer ParticlesBuffer
 {
 	Particle particles[];
 };

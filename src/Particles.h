@@ -19,7 +19,7 @@ public:
 
 private:
 	void CreateCommandBuffers();
-	void CreateParticles();
+	void CreateParticles(bool isRecreation);
 	void CreateRenderPass(const VulkanSwapChain& swapChain);
 	void CreateFramebuffers(const VulkanSwapChain& swapChain);
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);
@@ -40,7 +40,7 @@ private:
 	} pushConstants;
 
 	std::vector<Particle> particles;
-	VkMemoryBarrier computeFinishedBarrier;
+	VkBufferMemoryBarrier computeFinishedBarrier;
 };
 
 
