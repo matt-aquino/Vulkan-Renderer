@@ -258,6 +258,8 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 		descriptorWrite.pTexelBufferView = nullptr; // used for descriptors that refer to buffer views
 		vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 	}
+
+	graphicsPipeline.isDescriptorPoolEmpty = false;
 }
 
 void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)

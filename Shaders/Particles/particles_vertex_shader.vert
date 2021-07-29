@@ -1,17 +1,7 @@
 #version 460
 
-struct Particle
-{
-	vec3 position;
-	vec3 velocity;
-	vec3 color;
-};
-
-layout(binding = 0) readonly buffer ParticlesBuffer
-{
-	Particle particles[];
-
-} particlesBuffer;
+layout(location = 0) in vec3 position;
+layout(location = 1) in vec3 color;
 
 layout(push_constant) uniform PushConstants
 {
@@ -22,6 +12,6 @@ layout(location = 0) out vec3 pColor;
 void main()
 {
 	gl_PointSize = 10.0f;
-	gl_Position = mvp * vec4(particlesBuffer.particles[gl_BaseInstance].position, 1.0);
-	pColor = particlesBuffer.particles[gl_BaseInstance].color;
+	gl_Position = mvp * vec4(position, 1.0);
+	pColor = color;
 }

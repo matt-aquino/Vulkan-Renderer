@@ -40,7 +40,7 @@ private:
 	} pushConstants;
 
 	std::vector<Particle> particles;
-	VkBufferMemoryBarrier computeFinishedBarrier;
+	VkBufferMemoryBarrier computeFinishedBarrier, vertexFinishedBarrier;
 };
 
 

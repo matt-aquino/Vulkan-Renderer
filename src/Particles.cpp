@@ -2,7 +2,7 @@
 #include <random>
 
 const int MAX_NUM_PARTICLES = 1024 * 1024;
-const int WORK_GROUP_SIZE = 128;
+const int WORK_GROUP_SIZE = 256;
 const int NUM_GROUPS = MAX_NUM_PARTICLES / WORK_GROUP_SIZE;
 
 Particles::Particles(std::string name, const VulkanSwapChain& swapChain)
@@ -33,41 +33,32 @@ Particles::~Particles()
 
 void Particles::CreateScene()
 {
-	// begin recording command buffers
+	VkRenderPassBeginInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderArea.offset = { 0, 0 };
+	renderPassInfo.renderArea.extent = graphicsPipeline.scissors.extent;
+	renderPassInfo.renderPass = graphicsPipeline.renderPass;
 
+	VkClearValue clearColors[2] = {};
+	clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	clearColors[1].depthStencil = { 1.0f, 0 };
+
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	VkDeviceSize offsets[] = { 0 };
+
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT; // allows resubmission while also already pending execution.
+
+	// begin recording command buffers
 	for (size_t i = 0; i < commandBuffersList.size(); i++)
 	{
-		VkCommandBufferBeginInfo beginInfo = {};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		beginInfo.flags = 0; // defines how we want to use the command buffer
-		beginInfo.pInheritanceInfo = nullptr; // only important if we're using secondary command buffers
-
 		if (vkBeginCommandBuffer(commandBuffersList[i], &beginInfo) != VK_SUCCESS)
 			throw std::runtime_error("Failed to being recording command buffer!");
 
-		VkRenderPassBeginInfo renderPassInfo = {};
-		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = graphicsPipeline.renderPass;
 		renderPassInfo.framebuffer = graphicsPipeline.framebuffers[i];
-		renderPassInfo.renderArea.offset = { 0, 0 };
-		renderPassInfo.renderArea.extent = graphicsPipeline.scissors.extent;
-
-		VkClearValue clearColors[2] = {};
-		clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
-		clearColors[1].depthStencil = { 1.0f, 0 };
-
 		renderPassInfo.clearValueCount = 2;
 		renderPassInfo.pClearValues = clearColors;
-
-		// wait until vertex shader invocations from previous frame are over
-		// to avoid overwriting the vertex buffer
-		vkCmdPipelineBarrier(
-			commandBuffersList[i], 
-			VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-			0, 
-			0, nullptr, 
-			0, nullptr, 
-			0, nullptr);
 
 		// bind compute pipeline and dispatch compute shader to calculate particle positions
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipeline);
@@ -75,31 +66,36 @@ void Particles::CreateScene()
 			0, 1, &computePipeline.descriptorSet, 0, nullptr);
 		vkCmdDispatch(commandBuffersList[i], WORK_GROUP_SIZE, 1, 1);
 
-		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-		
-		// vertex shader MUST WAIT until compute shader is finished calculating all particles
-		vkCmdPipelineBarrier(commandBuffersList[i], 
-			VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_SHADER_BIT, 
-			0, 
-			0, nullptr, 
-			1, &computeFinishedBarrier, 
-			0, nullptr);
+		//vkCmdPipelineBarrier(commandBuffersList[i], 
+		//	VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 
+		//	0, 
+		//	0, nullptr, 
+		//	1, &computeFinishedBarrier, 
+		//	0, nullptr);
 
 		// bind graphics pipeline and begin render pass to draw particles to framebuffers
 		vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
 
-		// bind storage buffer
-		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout,
-			0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
-
 		// push mvp matrices
 		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
 
+		// bind storage buffer as a vertex buffer
+		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &computePipeline.storageBuffer, offsets);
+
 		// draw particles
-		vkCmdDraw(commandBuffersList[i], particles.size(), 1, 0, 0);
+		vkCmdDraw(commandBuffersList[i], MAX_NUM_PARTICLES, 1, 0, 0);
 
 		vkCmdEndRenderPass(commandBuffersList[i]);
+
+		// wait until vertex shader invocations from previous frame are over to avoid overwriting the vertex buffer
+		//vkCmdPipelineBarrier(
+		//	commandBuffersList[i], 													   // command buffer
+		//	VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, // src shader stage -> dst shader stage
+		//	0, 																		   // dependencies
+		//	0, nullptr, 															   // memory barriers
+		//	0, &vertexFinishedBarrier, 												   // buffer memory barriers
+		//	0, nullptr);															   // image memory barriers
 
 		if (vkEndCommandBuffer(commandBuffersList[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to record command buffer");
@@ -310,7 +306,7 @@ void Particles::CreateParticles(bool isRecreation)
 	vkUnmapMemory(device, stagingBufferMemory);
 	
 	// since we'll be reading this data back, we need to make sure the CPU can see it 
-	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
+	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
 		computePipeline.storageBuffer, computePipeline.storageBufferMemory);
 
@@ -379,15 +375,26 @@ void Particles::CreateRenderPass(const VulkanSwapChain& swapChain)
 	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
 	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
+	VkSubpassDependency computeDependency{};
+	computeDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	computeDependency.dstSubpass = 0;
+	computeDependency.srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+	computeDependency.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	computeDependency.dstStageMask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+	computeDependency.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+
 	VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
+	VkSubpassDependency dependencies[] = { dependency, computeDependency };
+
 	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassInfo.attachmentCount = 2;
 	renderPassInfo.pAttachments = attachments;
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
-	renderPassInfo.dependencyCount = 1;
-	renderPassInfo.pDependencies = &dependency;
+	renderPassInfo.dependencyCount = 2;
+	renderPassInfo.pDependencies = dependencies;
 
 	graphicsPipeline.result = vkCreateRenderPass(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &renderPassInfo, nullptr, &graphicsPipeline.renderPass);
 	if (graphicsPipeline.result != VK_SUCCESS)
@@ -449,10 +456,30 @@ void Particles::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 #pragma endregion
 
 #pragma region VERTEX_INPUT_STATE
+	VkVertexInputBindingDescription bindDesc{};
+	bindDesc.binding = 0;
+	bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	bindDesc.stride = sizeof(Particle);
+
+	VkVertexInputAttributeDescription attrDesc[2] = {};
+	attrDesc[0].binding = 0;
+	attrDesc[0].location = 0;
+	attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attrDesc[0].offset = offsetof(Particle, Particle::position);
+	
+	attrDesc[1].binding = 0;
+	attrDesc[1].location = 1;
+	attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attrDesc[1].offset = offsetof(Particle, Particle::color);
+
 
 	// ** Vertex Input State **
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertexInputInfo.vertexBindingDescriptionCount = 1;
+	vertexInputInfo.pVertexBindingDescriptions = &bindDesc;
+	vertexInputInfo.vertexAttributeDescriptionCount = 2;
+	vertexInputInfo.pVertexAttributeDescriptions = attrDesc;
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
 	inputAssemblyInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -559,8 +586,8 @@ void Particles::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	// ** Pipeline Layout ** 
 	VkPipelineLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	layoutInfo.setLayoutCount = 1;
-	layoutInfo.pSetLayouts = &graphicsPipeline.descriptorSetLayout;
+	layoutInfo.setLayoutCount = 0;
+	layoutInfo.pSetLayouts = nullptr;
 	layoutInfo.pushConstantRangeCount = 1;
 	layoutInfo.pPushConstantRanges = &push;
 
@@ -681,29 +708,30 @@ void Particles::CreateSyncObjects(const VulkanSwapChain& swapChain)
 	computeFinishedBarrier.buffer = computePipeline.storageBuffer;
 	computeFinishedBarrier.size = sizeof(Particle) * MAX_NUM_PARTICLES;
 	computeFinishedBarrier.offset = 0;
-	computeFinishedBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;// VulkanDevice::GetVulkanDevice()->GetFamilyIndices().computeFamily.value();
-	computeFinishedBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;// VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value();
+	computeFinishedBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	computeFinishedBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 	computeFinishedBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	computeFinishedBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	computeFinishedBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+
+	vertexFinishedBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	vertexFinishedBarrier.pNext = nullptr;
+	vertexFinishedBarrier.buffer = computePipeline.storageBuffer;
+	vertexFinishedBarrier.size = sizeof(Particle) * MAX_NUM_PARTICLES;
+	vertexFinishedBarrier.offset = 0;
+	vertexFinishedBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	vertexFinishedBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	vertexFinishedBarrier.srcAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+	vertexFinishedBarrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 }
 
 void Particles::CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain)
 {
+	/*
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
-	// create storage buffer binding for particles
-	VkDescriptorSetLayoutBinding ssboBinding = {};
-	ssboBinding.binding = 0;
-	ssboBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	ssboBinding.descriptorCount = 1;
-	ssboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT; 
-	ssboBinding.pImmutableSamplers = nullptr;
-
-	VkDescriptorSetLayoutBinding bindings[] = { ssboBinding };
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = 1;
-	layoutInfo.pBindings = bindings;
+	layoutInfo.bindingCount = 0;
+	layoutInfo.pBindings = nullptr;
 
 	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics descriptor set layout");
@@ -714,7 +742,7 @@ void Particles::CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain)
 	// create descriptor pool for graphics pipeline
 
 	VkDescriptorPoolSize poolSize{};
-	poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	poolSize.type = VK_DESCRIPTOR_TYPE_;
 	poolSize.descriptorCount = static_cast<uint32_t>(swapChainSize);
 
 	VkDescriptorPoolCreateInfo graphicsPoolInfo{};
@@ -761,7 +789,7 @@ void Particles::CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain)
 
 		vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 	}
-	
+	*/
 }
 
 void Particles::CreateComputeDescriptorSets(const VulkanSwapChain& swapChain)

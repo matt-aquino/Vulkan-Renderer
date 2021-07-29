@@ -719,4 +719,6 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
+
+	graphicsPipeline.isDescriptorPoolEmpty = false;
 }

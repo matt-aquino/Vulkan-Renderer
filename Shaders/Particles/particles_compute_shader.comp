@@ -12,7 +12,7 @@ layout(binding = 0) buffer ParticlesBuffer
 	Particle particles[];
 };
 
-layout(constant_id = 0) const int WORKGROUP = 64; // define our ID for our specialization info
+layout(constant_id = 0) const int WORKGROUP = 256; // define our ID for our specialization info
 
 layout(local_size_x_id = 0, local_size_y = 1, local_size_z = 1) in;
 void main()

@@ -55,7 +55,6 @@ struct VulkanGraphicsPipeline
 	VkRenderPass renderPass;
 	std::vector<VkFramebuffer> framebuffers;
 
-	bool isDepthBufferEmpty = true;
 	VkImage depthStencilBuffer;
 	VkImageView depthStencilBufferView;
 	VkDeviceMemory depthStencilBufferMemory;
@@ -63,13 +62,16 @@ struct VulkanGraphicsPipeline
 	VkViewport viewport;
 	VkRect2D scissors;
 
-	bool isVertexBufferEmpty = true, isIndexBufferEmpty = true;
 	VkBuffer vertexBuffer, indexBuffer;
 	VkDeviceMemory vertexBufferMemory, indexBufferMemory;
 
 	std::vector<VkBuffer> uniformBuffers;
 	std::vector<VkDeviceMemory> uniformBuffersMemory;
 
+	bool isVertexBufferEmpty = true,
+		 isIndexBufferEmpty = true,
+		 isDepthBufferEmpty = true,
+		 isDescriptorPoolEmpty = true;
 
 	size_t shaderFileSize;
 
@@ -126,8 +128,12 @@ struct VulkanGraphicsPipeline
 			vkFreeMemory(device, depthStencilBufferMemory, nullptr);
 		}
 		
-		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		if (!isDescriptorPoolEmpty)
+		{
+			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+		}
+
 		vkDestroyPipeline(device, pipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
 		vkDestroyRenderPass(device, renderPass, nullptr);
