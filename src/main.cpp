@@ -42,9 +42,6 @@ int main()
     Renderer newVulkanRenderer;
 
     newVulkanRenderer.RunApp();
-   
-    // This is where most initializtion for a program should be performed
-
 
     return 0;
 }

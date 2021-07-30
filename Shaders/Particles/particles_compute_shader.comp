@@ -1,0 +1,67 @@
+#version 460
+
+struct Particle
+{
+	vec3 position;
+	vec3 velocity;
+	vec3 color;
+};
+
+layout(binding = 0) buffer ParticlesBuffer
+{
+	Particle particles[];
+};
+
+layout(constant_id = 0) const int NUM_PARTICLES = 100000;
+
+layout(local_size_x = 256) in;
+
+vec3 attraction(vec3 pos, vec3 attractPos) 
+{
+    vec3 delta = attractPos - pos;
+	const float damp = 0.5;
+    float dDampedDot = dot(delta, delta) + damp;
+    float invDist = 1.0f / sqrt(dDampedDot);
+    float invDistCubed = invDist*invDist*invDist;
+    return delta * invDistCubed * 0.0035;
+}
+
+vec3 repulsion(vec3 pos, vec3 attractPos)
+{
+	vec3 delta = attractPos - pos;
+	float targetDistance = sqrt(dot(delta, delta));
+	return delta * (1.0 / (targetDistance * targetDistance * targetDistance)) * -0.000035;
+}
+
+
+void main()
+{
+	const float deltaT = 0.1f;
+	uint gid = gl_GlobalInvocationID.x;
+
+	// don't write beyond particle count
+	if (gid >= NUM_PARTICLES)
+		return;
+
+	vec3 pos = particles[gid].position;
+	vec3 vel = particles[gid].velocity;
+
+	vec3 dest = vec3(0.0f, 0.0f, 0.0f);
+	vec3 delta = dest - pos;
+	float dist = sqrt(dot(delta, delta));
+	vel += repulsion(pos, dest) * 0.05f;
+
+	// move by velocity
+    pos += vel * deltaT;
+
+
+	// collide with edges of the screen
+	if (pos.x < -1.0f || pos.x > 1.0f || pos.y < -1.0f || pos.y > 1.0f)
+		vel = (-vel * 0.1f) + attraction(pos, dest) * 12;
+
+	else
+		particles[gid].position = pos;
+
+	particles[gid].velocity = vel;
+
+}

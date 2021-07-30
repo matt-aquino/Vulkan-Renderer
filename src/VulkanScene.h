@@ -40,14 +40,14 @@ public:
 	virtual VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) = 0;
 	
 	// ** Clean up resources ** 
-	virtual void DestroyScene() = 0;
+	virtual void DestroyScene(bool isRecreation) = 0;
 
 	std::string sceneName;
 
 protected:
 
 	// ** Allocate memory to a command pool for command buffers **
-	virtual void CreateCommandPool() = 0;
+	void CreateCommandPool();
 
 	// ** Read shader files and create the shader modules used in a pipeline **
 	VkShaderModule CreateShaderModules(const std::vector<char>& code);

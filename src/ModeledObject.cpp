@@ -33,7 +33,9 @@ ModeledObject::ModeledObject(std::string name, const VulkanSwapChain& swapChain)
 	CreateSyncObjects(swapChain);
 
 	object->createVertexBuffer(commandPool);
+
 	object->createIndexBuffer(commandPool);
+
 	CreateDescriptorSets(swapChain);
 
 	CreateGraphicsPipeline(swapChain);
@@ -51,7 +53,7 @@ ModeledObject::ModeledObject()
 
 ModeledObject::~ModeledObject()
 {
-	DestroyScene();
+	DestroyScene(false);
 }
 
 void ModeledObject::CreateScene()
@@ -110,21 +112,14 @@ void ModeledObject::CreateScene()
 
 void ModeledObject::RecreateScene(const VulkanSwapChain& swapChain)
 {
-	delete object;
-	object = new Model("Zelda Chest/", "Medium_Chest.obj", "Zelda Chest/MediMM00.png");
+	DestroyScene(true);
 
-	object->CreateModel(commandPool);
-
+	// recreate the scene
 	CreateRenderPass(swapChain);
 	CreateUniforms(swapChain);
 	CreateFramebuffer(swapChain);
 	CreateCommandBuffers();
-	CreateSyncObjects(swapChain);
-
-	object->createVertexBuffer(commandPool);
-	object->createIndexBuffer(commandPool);
 	CreateDescriptorSets(swapChain);
-
 	CreateGraphicsPipeline(swapChain);
 
 	CreateScene();
@@ -202,39 +197,28 @@ VulkanReturnValues ModeledObject::RunScene(const VulkanSwapChain& swapChain)
 	return VulkanReturnValues::VK_FUNCTION_SUCCESS;
 }
 
-void ModeledObject::DestroyScene()
+void ModeledObject::DestroyScene(bool isRecreation)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+
+	graphicsPipeline.destroyGraphicsPipeline(device);
+
+	size_t size = commandBuffersList.size();
+	vkFreeCommandBuffers(device, commandPool, size, commandBuffersList.data());
+
+	// these only NEED to be deleted once cleanup happens
+	if (!isRecreation)
 	{
-		vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
-		vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
-		vkDestroyFence(device, inFlightFences[i], nullptr);
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+		{
+			vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
+			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
+			vkDestroyFence(device, inFlightFences[i], nullptr);
+		}	
+
+		vkDestroyCommandPool(device, commandPool, nullptr);
+		delete object;
 	}
-	vkDestroyCommandPool(device, commandPool, nullptr);
-
-	for (VkFramebuffer fb : graphicsPipeline.framebuffers)
-	{
-		vkDestroyFramebuffer(device, fb, nullptr);
-	}
-
-	size_t uniformBufferSize = graphicsPipeline.uniformBuffers.size();
-	for (size_t i = 0; i < uniformBufferSize; i++)
-	{
-		vkDestroyBuffer(device, graphicsPipeline.uniformBuffers[i], nullptr);
-		vkFreeMemory(device, graphicsPipeline.uniformBuffersMemory[i], nullptr);
-	}
-
-	vkDestroyImageView(device, graphicsPipeline.depthStencilBufferView, nullptr);
-	vkDestroyImage(device, graphicsPipeline.depthStencilBuffer, nullptr);
-	vkFreeMemory(device, graphicsPipeline.depthStencilBufferMemory, nullptr);
-	vkDestroyDescriptorPool(device, graphicsPipeline.descriptorPool, nullptr);
-	vkDestroyDescriptorSetLayout(device, graphicsPipeline.descriptorSetLayout, nullptr);
-	vkDestroyPipeline(device, graphicsPipeline.pipeline, nullptr);
-	vkDestroyPipelineLayout(device, graphicsPipeline.pipelineLayout, nullptr);
-	vkDestroyRenderPass(device, graphicsPipeline.renderPass, nullptr);
-
-	delete object;
 }
 
 void ModeledObject::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
@@ -261,12 +245,14 @@ void ModeledObject::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	fragShaderStageInfo.pName = "main";
 
 	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
-	VkVertexInputBindingDescription bindingDescription = ModelVertex::getBindingDescription();
-	std::array<VkVertexInputAttributeDescription, 3> attributeDescription = ModelVertex::getAttributeDescriptions();
 
 #pragma endregion 
 
 #pragma region VERTEX_INPUT_STATE
+
+	VkVertexInputBindingDescription bindingDescription = ModelVertex::getBindingDescription();
+	std::array<VkVertexInputAttributeDescription, 3> attributeDescription = ModelVertex::getAttributeDescriptions();
+	
 	// ** Vertex Input State **
 	VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
 	vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -361,7 +347,7 @@ void ModeledObject::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	depthStencilInfo.depthWriteEnable = VK_TRUE;
 	depthStencilInfo.depthBoundsTestEnable = VK_FALSE;
 	depthStencilInfo.stencilTestEnable = VK_FALSE;
-
+	graphicsPipeline.isDepthBufferEmpty = false;
 #pragma endregion
 
 #pragma region PUSH_CONSTANTS
@@ -408,7 +394,7 @@ void ModeledObject::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	graphicsPipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // use this to create new pipeline from an existing pipeline
 	graphicsPipelineInfo.basePipelineIndex = -1;
 
-	// this is breaking...
+	
 	graphicsPipeline.result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline.pipeline);
 	if (graphicsPipeline.result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics pipeline");
@@ -614,17 +600,6 @@ void ModeledObject::UpdateUniforms(uint32_t currentFrame)
 	vkUnmapMemory(device, graphicsPipeline.uniformBuffersMemory[currentFrame]);
 }
 
-void ModeledObject::CreateCommandPool()
-{
-	VkCommandPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	poolInfo.queueFamilyIndex = VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value();
-
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create command pool");
-}
-
 void ModeledObject::CreateCommandBuffers()
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
@@ -744,4 +719,6 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
+
+	graphicsPipeline.isDescriptorPoolEmpty = false;
 }

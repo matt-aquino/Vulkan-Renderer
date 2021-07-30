@@ -48,6 +48,7 @@ private:
 	// of VulkanDevice so that it may invoke CreateVulkanDevice at startup
 	friend class Renderer;
 	void CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSurface);
+	void DeleteLogicalDevice();
 
 	VulkanDevice();
 	~VulkanDevice();
@@ -62,6 +63,7 @@ private:
 	{
 		std::optional<uint32_t> graphicsFamily;
 		std::optional<uint32_t> presentFamily;
+		//std::optional<uint32_t> computeFamily;
 
 		bool isComplete()
 		{
@@ -73,6 +75,7 @@ private:
 	{
 		VkQueue renderQueue;
 		VkQueue presentQueue;
+		//VkQueue computeQueue;
 	} queues;
 
 	QueueFamilyIndices findQueueFamilies(VkSurfaceKHR surface);

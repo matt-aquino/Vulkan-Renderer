@@ -34,7 +34,7 @@ public:
 
 	VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) override;
 
-	void DestroyScene() override;
+	void DestroyScene(bool isRecreation) override;
 
 
 
@@ -51,7 +51,6 @@ private:
 	void CreateBuffers();
 	void CreateDescriptorSets(const VulkanSwapChain& swapChain);
 
-	void CreateCommandPool() override;
 	void CreateCommandBuffers();
 
 	VulkanGraphicsPipeline graphicsPipeline;

@@ -11,6 +11,17 @@ VulkanScene::~VulkanScene()
 
 }
 
+void VulkanScene::CreateCommandPool()
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
+	VkCommandPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	poolInfo.queueFamilyIndex = VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value();
+	poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create command pool");
+}
 
 void VulkanScene::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
@@ -49,7 +60,7 @@ void VulkanScene::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMe
 	// max number of simultaneous memory allocations is limited by maxMemoryAllocationCount in physicalDevice
 	// best practice is to create a custom allocator that splits up single allocations among many different objects using the offset param
 	if (vkAllocateMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS)
-		throw std::runtime_error("Failed to allocate vertex buffer memory");
+		throw std::runtime_error("Failed to allocate buffer memory");
 
 	vkBindBufferMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), buffer, bufferMemory, 0); // if offset is not 0, it MUST be visible by memRequirements.alignment
 

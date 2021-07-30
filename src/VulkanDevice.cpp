@@ -29,7 +29,6 @@ VulkanDevice::VulkanDevice()
 
 VulkanDevice::~VulkanDevice()
 {
-    vkDestroyDevice(logicalDevice, NULL);
     delete device;
 }
 
@@ -93,6 +92,11 @@ VulkanDevice* VulkanDevice::GetVulkanDevice()
 {
     if (device != nullptr)
         return device;
+}
+
+void VulkanDevice::DeleteLogicalDevice()
+{
+    vkDestroyDevice(logicalDevice, nullptr);
 }
 
 bool VulkanDevice::checkDeviceSupportedExtensions(VkPhysicalDevice dev)

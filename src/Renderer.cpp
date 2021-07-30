@@ -29,10 +29,12 @@ Renderer::Renderer()
 
 
     // Create our scenes
-    HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
-    ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
-    scenesList.push_back(scene1);
-    scenesList.push_back(scene2);
+    //HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
+    //ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
+    Particles* scene3 = new Particles("Particles", vulkanSwapChain);
+    //scenesList.push_back(scene1);
+    //scenesList.push_back(scene2);
+    scenesList.push_back(scene3);
 }
 
 
@@ -149,7 +151,7 @@ void Renderer::RunApp()
                 case SDL_SCANCODE_LEFT:
                     if (sceneIndex == 0)
                         sceneIndex = scenesList.size() - 1;
-
+                    
                     else
                         sceneIndex--;
 
@@ -209,7 +211,7 @@ void Renderer::CleanUp()
     // Clear all scenes
     for (VulkanScene* scene : scenesList)
     {
-        scene->DestroyScene();
+        scene->DestroyScene(false);
         delete scene;
     }
 
@@ -223,7 +225,9 @@ void Renderer::CleanUp()
     }
 
     vkDestroySwapchainKHR(VulkanDevice::GetVulkanDevice()->logicalDevice, vulkanSwapChain.swapChain, nullptr);
-    vkDestroyDevice(VulkanDevice::GetVulkanDevice()->logicalDevice, nullptr);
+
+    VulkanDevice::GetVulkanDevice()->DeleteLogicalDevice();
+
     vkDestroySurfaceKHR(instance, renderSurface, NULL);
     vkDestroyInstance(instance, NULL);
 
@@ -400,8 +404,9 @@ void Renderer::RecreateSwapChain()
     CreateSwapChain();
     CreateImages();
 
-    // clean up entire graphics pipeline and swap chain
-    scenesList[sceneIndex]->RecreateScene(vulkanSwapChain);
+    // all framebuffers are rendered useless now, so recreate them with the new swap chain
+    for (int i = 0; i < scenesList.size(); i++)
+        scenesList[i]->RecreateScene(vulkanSwapChain);
 }
 
 bool Renderer::checkValidationLayerSupport()

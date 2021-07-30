@@ -30,7 +30,7 @@ public:
 	void CreateScene() override;
 	void RecreateScene(const VulkanSwapChain& swapChain) override;
 	VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) override;
-	void DestroyScene() override;
+	void DestroyScene(bool isRecreation) override;
 
 private:
 	// ** Create all aspects of the graphics pipeline **
@@ -42,8 +42,8 @@ private:
 	// ** Create the framebuffers used for rendering **
 	void CreateFramebuffers(const VulkanSwapChain& swapChain);
 
-	// ** Allocate memory to a command pool for command buffers **
-	void CreateCommandPool() override;
+
+	void CreateCommandBuffers();
 
 	// ** Create the synchronization object - semaphores, fences **
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);

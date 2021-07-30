@@ -26,8 +26,12 @@
 #include <algorithm>
 
 #include "VulkanDevice.h"
+
+// scene includes
 #include "HelloWorldTriangle.h"
 #include "ModeledObject.h"
+#include "Particles.h"
+
 
 class Renderer
 {
@@ -50,9 +54,6 @@ public:
 	unsigned int windowWidth = 800, windowHeight = 600;
 
 private:
-
-	// Devices
-	VulkanDevice* device;
 
 	// Rendering
 	SDL_Window* appWindow;
