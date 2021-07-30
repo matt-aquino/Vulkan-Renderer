@@ -64,8 +64,6 @@ void Particles::CreateScene()
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipeline);
 		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipelineLayout, 
 			0, 1, &computePipeline.descriptorSet, 0, nullptr);
-		//vkCmdDispatch(commandBuffersList[i], WORK_GROUP_SIZE, 1, 1);
-		//vkCmdDispatch(commandBuffersList[i], MAX_NUM_PARTICLES / WORK_GROUP_SIZE, 1, 1);
 		vkCmdDispatch(commandBuffersList[i], NUM_GROUPS, 1, 1);
 
 		// bind graphics pipeline and begin render pass to draw particles to framebuffers
@@ -298,7 +296,7 @@ void Particles::CreatePushConstants(const VulkanSwapChain& swapChain)
 
 void Particles::UpdatePushConstants()
 {
-	cameraPosition.z += 0.5f;
+	//cameraPosition.z += 0.5f;
 	view = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
 	pushConstants.mvp = proj * view * model;
 }
@@ -607,11 +605,28 @@ void Particles::CreateComputePipeline()
 	auto compShaderCode = computePipeline.readShaderFile(SHADERPATH"Particles/particles_compute_shader.spv");
 	VkShaderModule compShaderModule = CreateShaderModules(compShaderCode);
 
+	// Specialization Constants
+	int data[] = { MAX_NUM_PARTICLES };
+
+	VkSpecializationMapEntry entries =
+	{
+		0,
+		0,
+		sizeof(int)
+	};
+
+	VkSpecializationInfo specInfo;
+	specInfo.dataSize = sizeof(int);
+	specInfo.mapEntryCount = 1;
+	specInfo.pMapEntries = &entries;
+	specInfo.pData = data;
+
 	VkPipelineShaderStageCreateInfo compShaderStageInfo{};
 	compShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	compShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
 	compShaderStageInfo.module = compShaderModule;
 	compShaderStageInfo.pName = "main";
+	compShaderStageInfo.pSpecializationInfo = &specInfo;
 
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
