@@ -1,7 +1,7 @@
 #include "Particles.h"
 #include <random>
 
-const int MAX_NUM_PARTICLES = 100000;// *1024;
+const int MAX_NUM_PARTICLES = 1024 * 1024;
 const int WORK_GROUP_SIZE = 256;
 const int NUM_GROUPS = MAX_NUM_PARTICLES / WORK_GROUP_SIZE;
 
@@ -88,6 +88,8 @@ void Particles::CreateScene()
 
 void Particles::RecreateScene(const VulkanSwapChain& swapChain)
 {
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	vkDeviceWaitIdle(device); // wait for all operations to finish
 	ReadBackParticleData();
 
 	DestroyScene(true);
@@ -296,8 +298,7 @@ void Particles::CreatePushConstants(const VulkanSwapChain& swapChain)
 
 void Particles::UpdatePushConstants()
 {
-	//cameraPosition.z += 0.5f;
-	view = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
+	view *= glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 1.0f)); // move camera forward slightly every frame
 	pushConstants.mvp = proj * view * model;
 }
 
@@ -621,6 +622,12 @@ void Particles::CreateComputePipeline()
 	specInfo.pMapEntries = &entries;
 	specInfo.pData = data;
 
+	// Push Constants
+	VkPushConstantRange push{};
+	push.size = sizeof(PushConstants);
+	push.offset = 0;
+	push.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
 	VkPipelineShaderStageCreateInfo compShaderStageInfo{};
 	compShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 	compShaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
@@ -634,6 +641,8 @@ void Particles::CreateComputePipeline()
 	computeLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	computeLayoutInfo.setLayoutCount = 1;
 	computeLayoutInfo.pSetLayouts = &computePipeline.descriptorSetLayout;
+	computeLayoutInfo.pushConstantRangeCount = 1;
+	computeLayoutInfo.pPushConstantRanges = &push;
 
 	if (vkCreatePipelineLayout(device, &computeLayoutInfo, nullptr, &computePipeline.pipelineLayout))
 		throw std::runtime_error("Failed to create compute pipeline layout!");
