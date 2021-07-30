@@ -28,6 +28,9 @@ private:
 	void CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain);
 	void CreateComputeDescriptorSets(const VulkanSwapChain& swapChain);
 	void CreatePushConstants(const VulkanSwapChain& swapChain);
+	void UpdatePushConstants();
+
+	void ReadBackParticleData();
 
 	uint32_t currentFrame = 0;
 
@@ -38,6 +41,10 @@ private:
 	{
 		glm::mat4 mvp;
 	} pushConstants;
+
+
+	glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, -10.0f);
+	glm::mat4 model, view, proj;
 
 	std::vector<Particle> particles;
 	VkBufferMemoryBarrier computeFinishedBarrier, vertexFinishedBarrier;

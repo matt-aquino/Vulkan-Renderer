@@ -11,7 +11,7 @@ layout(push_constant) uniform PushConstants
 layout(location = 0) out vec3 pColor;
 void main()
 {
-	gl_PointSize = 10.0f;
+	gl_PointSize = 5.0f;
 	gl_Position = mvp * vec4(position, 1.0);
 	pColor = color;
 }
