@@ -15,6 +15,7 @@
 */
 
 #include "Renderer.h"
+#include "Camera.h"
 
 Renderer::Renderer()
 {
@@ -30,11 +31,11 @@ Renderer::Renderer()
 
     // Create our scenes
     //HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
-    //ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
-    Particles* scene3 = new Particles("Particles", vulkanSwapChain);
+    ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
+    //Particles* scene3 = new Particles("Particles", vulkanSwapChain);
     //scenesList.push_back(scene1);
-    //scenesList.push_back(scene2);
-    scenesList.push_back(scene3);
+    scenesList.push_back(scene2);
+    //scenesList.push_back(scene3);
 }
 
 
@@ -123,6 +124,8 @@ void Renderer::RunApp()
 {
     SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str());
     VulkanReturnValues returnValues;
+    Camera camera = Camera(glm::vec3(0.0f, 0.0f, -5.0f), glm::vec3(0.0f));
+    
 
     // Poll for user input.
     while (isAppRunning) {
@@ -142,34 +145,62 @@ void Renderer::RunApp()
             {
                 switch (event.key.keysym.scancode)
                 {
-                    // change scenes
-                case SDL_SCANCODE_RIGHT:
-                    sceneIndex = (sceneIndex + 1) % scenesList.size();
-                    SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
-                    break;
+                    #pragma region SCENE_CHANGE
+                                case SDL_SCANCODE_RIGHT:
+                                    sceneIndex = (sceneIndex + 1) % scenesList.size();
+                                    SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
+                                    break;
 
-                case SDL_SCANCODE_LEFT:
-                    if (sceneIndex == 0)
-                        sceneIndex = scenesList.size() - 1;
+                                case SDL_SCANCODE_LEFT:
+                                    if (sceneIndex == 0)
+                                        sceneIndex = scenesList.size() - 1;
                     
-                    else
-                        sceneIndex--;
+                                    else
+                                        sceneIndex--;
 
-                    SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
-                    break;
+                                    SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
+                                    break;
+
+                #pragma endregion
 
                     // close application
-                case SDL_SCANCODE_ESCAPE:
-                    isAppRunning = false;
-                    break;
+                    case SDL_SCANCODE_ESCAPE:
+                        isAppRunning = false;
+                        break;
 
-                default:
-                    break;
+                    #pragma region CAMERA_MOVEMENT
+                                case SDL_SCANCODE_A:
+                                    camera.HandleInput(Camera::KeyboardInputs::LEFT);
+                                    break;
+
+                                case SDL_SCANCODE_D:
+                                    camera.HandleInput(Camera::KeyboardInputs::RIGHT);
+                                    break;
+
+                                case SDL_SCANCODE_W:
+                                    camera.HandleInput(Camera::KeyboardInputs::FORWARD);
+                                    break;
+
+                                case SDL_SCANCODE_S:
+                                    camera.HandleInput(Camera::KeyboardInputs::BACKWARD);
+                                    break;
+
+                                case SDL_SCANCODE_Q:
+                                    camera.HandleInput(Camera::KeyboardInputs::DOWN);
+                                    break;
+
+                                case SDL_SCANCODE_E:
+                                    camera.HandleInput(Camera::KeyboardInputs::UP);
+                                    break;
+
+                #pragma endregion
+                    default:
+                        break;
                 }
             }
                 break;
                 
-                // window resized
+            #pragma region WINDOW_SIZE
             case SDL_WINDOWEVENT:
                 if (event.window.event == SDL_WINDOWEVENT_MINIMIZED)
                 {
@@ -183,6 +214,8 @@ void Renderer::RunApp()
                 }
 
                 break;
+
+#pragma endregion
 
             default:
                 // Do nothing.
