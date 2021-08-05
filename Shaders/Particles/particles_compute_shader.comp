@@ -12,6 +12,13 @@ layout(binding = 0) buffer ParticlesBuffer
 	Particle particles[];
 };
 
+layout(push_constant) uniform ComputePush
+{
+	int xBounds;
+	int yBounds;
+	int zBounds;
+};
+
 layout(constant_id = 0) const int NUM_PARTICLES = 100000;
 
 layout(local_size_x = 256) in;
@@ -55,10 +62,14 @@ void main()
     pos += vel * deltaT;
 
 
-	// collide with edges of the screen
-	if (pos.x < -1.0f || pos.x > 1.0f || pos.y < -1.0f || pos.y > 1.0f)
+	// collide with edges of the area
+	if (pos.x < -xBounds || pos.x > xBounds || 
+		pos.y < -yBounds || pos.y > yBounds || 
+		pos.z < -zBounds || pos.z > zBounds)
+	{
 		vel = (-vel * 0.1f) + attraction(pos, dest) * 12;
-
+	}
+	
 	else
 		particles[gid].position = pos;
 

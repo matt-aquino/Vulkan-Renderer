@@ -12,8 +12,8 @@ Particles::Particles(std::string name, const VulkanSwapChain& swapChain)
 	srand(unsigned int (time(NULL))); // seed random number generator
 
 	CreateCommandPool();
+	CreateUniforms(swapChain);
 	CreateParticles(false);
-	CreatePushConstants(swapChain);
 	CreateRenderPass(swapChain);
 	CreateFramebuffers(swapChain);
 	CreateCommandBuffers();
@@ -64,14 +64,14 @@ void Particles::CreateScene()
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipeline);
 		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline.pipelineLayout, 
 			0, 1, &computePipeline.descriptorSet, 0, nullptr);
+		vkCmdPushConstants(commandBuffersList[i], computePipeline.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(ComputePush), &pushConstants);
 		vkCmdDispatch(commandBuffersList[i], NUM_GROUPS, 1, 1);
 
 		// bind graphics pipeline and begin render pass to draw particles to framebuffers
 		vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
-
-		// push mvp matrices
-		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
+		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout,
+			0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
 
 		// bind storage buffer as a vertex buffer
 		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &computePipeline.storageBuffer, offsets);
@@ -94,8 +94,8 @@ void Particles::RecreateScene(const VulkanSwapChain& swapChain)
 
 	DestroyScene(true);
 
+	CreateUniforms(swapChain);
 	CreateParticles(true);
-	CreatePushConstants(swapChain);
 	CreateRenderPass(swapChain);
 	CreateFramebuffers(swapChain);
 	CreateCommandBuffers();
@@ -138,7 +138,7 @@ VulkanReturnValues Particles::RunScene(const VulkanSwapChain& swapChain)
 	}
 
 
-	UpdatePushConstants();
+	UpdateUniforms(currentFrame);
 
 	// mark image as now being in use by this frame
 	imagesInFlight[imageIndex] = inFlightFences[currentFrame];
@@ -228,6 +228,10 @@ void Particles::CreateCommandBuffers()
 
 void Particles::CreateParticles(bool isRecreation)
 {
+	pushConstants.xBounds = (std::rand() % 4) + 1; 
+	pushConstants.yBounds = (std::rand() % 4) + 1;
+	pushConstants.zBounds = (std::rand() % 4) + 1; // add 1 to make sure we always have a bound
+
 	// don't recreate all the particles from scratch
 	// simply recreate the buffer and reinput the data
 	if (!isRecreation)
@@ -237,9 +241,9 @@ void Particles::CreateParticles(bool isRecreation)
 		{
 			// random number between -1.0 and 1.0
 			glm::vec3 position = {
-				float(std::rand() % 20 - 10.0f) / 10.0f,
-				float(std::rand() % 20 - 10.0f) / 10.0f,
-				float(std::rand() % 20 - 10.0f) / 10.0f,
+				float((std::rand() % 100 - 50) / 50.0f),
+				float((std::rand() % 100 - 50) / 50.0f),
+				float((std::rand() % 100 - 50) / 50.0f),
 			};
 
 			glm::vec3 velocity = {
@@ -287,19 +291,63 @@ void Particles::CreateParticles(bool isRecreation)
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Particles::CreatePushConstants(const VulkanSwapChain& swapChain)
+void Particles::CreateUniforms(const VulkanSwapChain& swapChain)
 {
-	model = glm::mat4(1.0f);
-	view = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
-	proj = glm::perspective(glm::radians(90.0f), float(swapChain.swapChainDimensions.width / swapChain.swapChainDimensions.height), 0.1f, 1000.0f);
-	proj[1][1] *= -1;
-	pushConstants.mvp = proj * view * model;
+	Camera* const camera = Camera::GetCamera();
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
+	ubo.model = glm::mat4(1.0f);
+	ubo.view = camera->GetViewMatrix();
+	ubo.proj = glm::perspective(glm::radians(camera->GetFOV()), float(swapChain.swapChainDimensions.width / swapChain.swapChainDimensions.height), 0.1f, 1000.0f);
+	ubo.proj[1][1] *= -1;
+
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	VkDeviceSize size = sizeof(UBO);
+
+	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer, stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(device, stagingBufferMemory, 0, size, 0, &data);
+	memcpy(data, &ubo, size);
+	vkUnmapMemory(device, stagingBufferMemory);
+
+	size_t swapChainSize = swapChain.swapChainImages.size();
+	graphicsPipeline.uniformBuffers.resize(swapChainSize);
+	graphicsPipeline.uniformBuffersMemory.resize(swapChainSize);
+
+	// create graphics uniform buffers
+	for (size_t i = 0; i < swapChainSize; i++)
+	{
+		createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			graphicsPipeline.uniformBuffers[i], graphicsPipeline.uniformBuffersMemory[i]);
+
+		copyBuffer(stagingBuffer, graphicsPipeline.uniformBuffers[i], size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	}
+
+	// create compute uniform buffer
+	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		computePipeline.uniformBuffer, computePipeline.uniformBufferMemory);
+
+	copyBuffer(stagingBuffer, computePipeline.uniformBuffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+
+	vkDestroyBuffer(device, stagingBuffer, nullptr);
+	vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Particles::UpdatePushConstants()
+void Particles::UpdateUniforms(uint32_t currentFrame)
 {
-	view *= glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 1.0f)); // move camera forward slightly every frame
-	pushConstants.mvp = proj * view * model;
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	Camera* const camera = Camera::GetCamera();
+	ubo.view = camera->GetViewMatrix();
+
+	void* data;
+	vkMapMemory(device, graphicsPipeline.uniformBuffersMemory[currentFrame], 0, sizeof(UBO), 0, &data);
+	memcpy(data, &ubo, sizeof(UBO));
+	vkUnmapMemory(device, graphicsPipeline.uniformBuffersMemory[currentFrame]);
 }
 
 void Particles::CreateRenderPass(const VulkanSwapChain& swapChain)
@@ -548,15 +596,6 @@ void Particles::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	graphicsPipeline.isDepthBufferEmpty = false;
 #pragma endregion
 
-#pragma region PUSH_CONSTANTS
-
-	VkPushConstantRange push{};
-	push.size = sizeof(PushConstants);
-	push.offset = 0;
-	push.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-#pragma endregion
-
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
 	VkPipelineShaderStageCreateInfo stages[] = { vertShaderStageInfo, fragShaderStageInfo };
@@ -564,10 +603,8 @@ void Particles::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	// ** Pipeline Layout ** 
 	VkPipelineLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	layoutInfo.setLayoutCount = 0;
-	layoutInfo.pSetLayouts = nullptr;
-	layoutInfo.pushConstantRangeCount = 1;
-	layoutInfo.pPushConstantRanges = &push;
+	layoutInfo.setLayoutCount = 1;
+	layoutInfo.pSetLayouts = &graphicsPipeline.descriptorSetLayout;
 
 	graphicsPipeline.result = vkCreatePipelineLayout(device, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
 	if (graphicsPipeline.result != VK_SUCCESS)
@@ -622,11 +659,10 @@ void Particles::CreateComputePipeline()
 	specInfo.pMapEntries = &entries;
 	specInfo.pData = data;
 
-	// Push Constants
 	VkPushConstantRange push{};
-	push.size = sizeof(PushConstants);
-	push.offset = 0;
+	push.size = sizeof(ComputePush);
 	push.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+	push.offset = 0;
 
 	VkPipelineShaderStageCreateInfo compShaderStageInfo{};
 	compShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -706,12 +742,20 @@ void Particles::CreateSyncObjects(const VulkanSwapChain& swapChain)
 
 void Particles::CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain)
 {
-	/*
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
+	// create descriptor sets for UBO
+	VkDescriptorSetLayoutBinding uboBinding = {};
+	uboBinding.binding = 1;
+	uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboBinding.descriptorCount = 1;
+	uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uboBinding.pImmutableSamplers = nullptr;
+
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = 0;
-	layoutInfo.pBindings = nullptr;
+	layoutInfo.bindingCount = 1;
+	layoutInfo.pBindings = &uboBinding;
 
 	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics descriptor set layout");
@@ -722,7 +766,7 @@ void Particles::CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain)
 	// create descriptor pool for graphics pipeline
 
 	VkDescriptorPoolSize poolSize{};
-	poolSize.type = VK_DESCRIPTOR_TYPE_;
+	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSize.descriptorCount = static_cast<uint32_t>(swapChainSize);
 
 	VkDescriptorPoolCreateInfo graphicsPoolInfo{};
@@ -733,6 +777,7 @@ void Particles::CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain)
 
 	if (vkCreateDescriptorPool(device, &graphicsPoolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics descriptor pool");
+	graphicsPipeline.isDescriptorPoolEmpty = false;
 
 	std::vector<VkDescriptorSetLayout> layout(swapChainSize, graphicsPipeline.descriptorSetLayout);
 
@@ -752,24 +797,21 @@ void Particles::CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain)
 	for (size_t i = 0; i < swapChainSize; i++)
 	{
 		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer =	computePipeline.storageBuffer;
+		bufferInfo.buffer =	graphicsPipeline.uniformBuffers[i];
 		bufferInfo.offset = 0;
-		bufferInfo.range = sizeof(Particle) * MAX_NUM_PARTICLES;
+		bufferInfo.range = sizeof(UBO);
 
 		VkWriteDescriptorSet descriptorWrite{};
 		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrite.dstSet = graphicsPipeline.descriptorSets[i];
-		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstBinding = 1;
 		descriptorWrite.dstArrayElement = 0;
 		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWrite.pBufferInfo = &bufferInfo;
-		descriptorWrite.pImageInfo = nullptr; // used for descriptors that refer to image data
-		descriptorWrite.pTexelBufferView = nullptr; // used for descriptors that refer to buffer view
 
 		vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 	}
-	*/
 }
 
 void Particles::CreateComputeDescriptorSets(const VulkanSwapChain& swapChain)
@@ -782,28 +824,39 @@ void Particles::CreateComputeDescriptorSets(const VulkanSwapChain& swapChain)
 	ssboBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	ssboBinding.descriptorCount = 1;
 	ssboBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-	ssboBinding.pImmutableSamplers = nullptr;
 
-	VkDescriptorSetLayoutBinding bindings[] = { ssboBinding };
+	// create binding for uniform buffer
+	VkDescriptorSetLayoutBinding uboBinding = {};
+	uboBinding.binding = 1;
+	uboBinding.descriptorCount = 1;
+	uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboBinding.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+	VkDescriptorSetLayoutBinding bindings[] = { ssboBinding, uboBinding };
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layoutInfo.bindingCount = 1;
+	layoutInfo.bindingCount = 2;
 	layoutInfo.pBindings = bindings;
 
 	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &computePipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create compute descriptor set layout!");
 
-	// create descriptor pool
+	// create descriptor pools
 
-	VkDescriptorPoolSize poolSize{};
-	poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	poolSize.descriptorCount = 1;
+	VkDescriptorPoolSize ssboPoolSize{};
+	ssboPoolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	ssboPoolSize.descriptorCount = 1;
 
+	VkDescriptorPoolSize uboPoolSize{};
+	uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboPoolSize.descriptorCount = 1;
+
+	VkDescriptorPoolSize sizes[] = { ssboPoolSize, uboPoolSize };
 	VkDescriptorPoolCreateInfo computePoolInfo{};
 	computePoolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	computePoolInfo.poolSizeCount = 1;
-	computePoolInfo.pPoolSizes = &poolSize;
-	computePoolInfo.maxSets = 1;
+	computePoolInfo.poolSizeCount = 2;
+	computePoolInfo.pPoolSizes = sizes;
+	computePoolInfo.maxSets = 2;
 
 	if (vkCreateDescriptorPool(device, &computePoolInfo, nullptr, &computePipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create compute descriptor pool");
@@ -832,7 +885,23 @@ void Particles::CreateComputeDescriptorSets(const VulkanSwapChain& swapChain)
 	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	descriptorWrite.pBufferInfo = &bufferInfo;
 
-	vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+	VkDescriptorBufferInfo uboInfo = {};
+	uboInfo.buffer = computePipeline.uniformBuffer;
+	uboInfo.offset = 0;
+	uboInfo.range = sizeof(UBO);
+
+	VkWriteDescriptorSet uboWrite = {};
+	uboWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	uboWrite.dstSet = computePipeline.descriptorSet;
+	uboWrite.dstBinding = 1;
+	uboWrite.dstArrayElement = 0;
+	uboWrite.descriptorCount = 1;
+	uboWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboWrite.pBufferInfo = &uboInfo;
+
+	VkWriteDescriptorSet writes[] = { descriptorWrite, uboWrite };
+
+	vkUpdateDescriptorSets(device, 2, writes, 0, nullptr);
 }
 
 void Particles::ReadBackParticleData()

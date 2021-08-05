@@ -32,10 +32,10 @@ Renderer::Renderer()
     // Create our scenes
     HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
     ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
-    //Particles* scene3 = new Particles("Particles", vulkanSwapChain);
+    Particles* scene3 = new Particles("Particles", vulkanSwapChain);
     scenesList.push_back(scene1);
     scenesList.push_back(scene2);
-    //scenesList.push_back(scene3);
+    scenesList.push_back(scene3);
 }
 
 
@@ -148,6 +148,8 @@ void Renderer::RunApp()
                     {
                         case SDL_SCANCODE_LEFT:
 
+                            camera->ResetCamera();
+
                             if (sceneIndex == 0)
                                 sceneIndex = static_cast<uint32_t>(scenesList.size()) - 1;
 
@@ -158,6 +160,7 @@ void Renderer::RunApp()
                             break;
 
                         case SDL_SCANCODE_RIGHT:
+                            camera->ResetCamera();
                             sceneIndex = (sceneIndex + 1) % scenesList.size();
                             SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
                             break;

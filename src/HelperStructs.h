@@ -145,8 +145,8 @@ struct VulkanComputePipeline
 	VkPipelineLayout pipelineLayout;
 	VkPipeline pipeline;
 
-	VkBuffer storageBuffer;
-	VkDeviceMemory storageBufferMemory;
+	VkBuffer storageBuffer, uniformBuffer;
+	VkDeviceMemory storageBufferMemory, uniformBufferMemory;
 
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -177,6 +177,8 @@ struct VulkanComputePipeline
 	{
 		vkDestroyBuffer(device, storageBuffer, nullptr);
 		vkFreeMemory(device, storageBufferMemory, nullptr);
+		vkDestroyBuffer(device, uniformBuffer, nullptr);
+		vkFreeMemory(device, uniformBufferMemory, nullptr);
 		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 		vkDestroyPipeline(device, pipeline, nullptr);

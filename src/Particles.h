@@ -4,6 +4,7 @@
 #include "VulkanScene.h"
 #include "VulkanDevice.h"
 #include "HelperStructs.h"
+#include <time.h>
 
 class Particles : public VulkanScene
 {
@@ -27,8 +28,8 @@ private:
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);
 	void CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain);
 	void CreateComputeDescriptorSets(const VulkanSwapChain& swapChain);
-	void CreatePushConstants(const VulkanSwapChain& swapChain);
-	void UpdatePushConstants();
+	void CreateUniforms(const VulkanSwapChain& swapChain);
+	void UpdateUniforms(uint32_t currentFrame);
 
 	void ReadBackParticleData();
 
@@ -37,14 +38,21 @@ private:
 	VulkanGraphicsPipeline graphicsPipeline;
 	VulkanComputePipeline computePipeline;
 
-	struct PushConstants
+	struct UBO
 	{
-		glm::mat4 mvp;
+		alignas(16) glm::mat4 model;
+		alignas(16) glm::mat4 view;
+		alignas(16) glm::mat4 proj;
+	} ubo;
+
+	struct ComputePush
+	{
+		int xBounds;
+		int yBounds;
+		int zBounds;
 	} pushConstants;
 
-
 	glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, -10.0f);
-	glm::mat4 model, view, proj;
 
 	std::vector<Particle> particles;
 	VkBufferMemoryBarrier computeFinishedBarrier, vertexFinishedBarrier;

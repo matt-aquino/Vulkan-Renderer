@@ -5,6 +5,7 @@ Camera* Camera::camera = nullptr;
 Camera::Camera(glm::vec3 pos)
 {
 	position = pos;
+	startPosition = position;
 	pitch = 0.0f;
 	yaw = 90.0f;
 	zoom = 45.0f;
@@ -71,4 +72,16 @@ void Camera::RotateCamera(float xOffset, float yOffset)
 	forward = glm::normalize(forward);
 	right = glm::normalize(glm::cross(forward, WorldUp));
 	up = glm::normalize(glm::cross(right, forward));
+}
+
+void Camera::ResetCamera()
+{
+	// reset all camera values
+	position = startPosition;
+	pitch = 0.0f;
+	yaw = 90.0f;
+	zoom = 45.0f;
+	forward = glm::vec3(0.0f, 0.0f, 1.0f);
+	up = WorldUp;
+	right = glm::vec3(1.0f, 0.0f, 0.0f);
 }

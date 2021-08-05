@@ -44,7 +44,9 @@ private:
 	void HandleInput(KeyboardInputs input, float dt);
 	void RotateCamera(float xOffset, float yOffset);
 	void ChangeZoom(float dt);
+	void ResetCamera();
 
+	glm::vec3 startPosition;
 	glm::vec3 position;
 	glm::vec3 forward;
 	glm::vec3 right;
