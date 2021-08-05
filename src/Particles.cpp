@@ -392,13 +392,23 @@ void Particles::CreateRenderPass(const VulkanSwapChain& swapChain)
 	// documentation says this is a better way of synchronization compared to pipeline barriers
 	// https://github.com/KhronosGroup/Vulkan-Docs/wiki/Synchronization-Examples#compute-to-graphics-dependencies
 
-	VkSubpassDependency computeDependency{};
-	computeDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	computeDependency.dstSubpass = 0;
-	computeDependency.srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-	computeDependency.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-	computeDependency.dstStageMask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
-	computeDependency.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+	// vertex shader waits on compute shader
+	VkSubpassDependency computeFinishedDependency{};
+	computeFinishedDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	computeFinishedDependency.dstSubpass = 0;
+	computeFinishedDependency.srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+	computeFinishedDependency.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	computeFinishedDependency.dstStageMask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+	computeFinishedDependency.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+
+	// compute shader waits on vertex shader
+	VkSubpassDependency vertexFinishedDependency{};
+	vertexFinishedDependency.srcSubpass = 0;
+	vertexFinishedDependency.dstSubpass = VK_SUBPASS_EXTERNAL;
+	vertexFinishedDependency.srcStageMask = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+	vertexFinishedDependency.srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	vertexFinishedDependency.dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+	vertexFinishedDependency.dstAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
 
 	VkSubpassDependency dependency{};
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -409,7 +419,7 @@ void Particles::CreateRenderPass(const VulkanSwapChain& swapChain)
 	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
 	VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
-	VkSubpassDependency dependencies[] = { computeDependency, dependency };
+	VkSubpassDependency dependencies[] = { computeFinishedDependency, vertexFinishedDependency , dependency };
 
 	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -417,7 +427,7 @@ void Particles::CreateRenderPass(const VulkanSwapChain& swapChain)
 	renderPassInfo.pAttachments = attachments;
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
-	renderPassInfo.dependencyCount = 2;
+	renderPassInfo.dependencyCount = 3;
 	renderPassInfo.pDependencies = dependencies;
 
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
