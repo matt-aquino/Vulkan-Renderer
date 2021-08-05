@@ -6,35 +6,56 @@
 #include <chrono>
 #include <time.h>
 
+const glm::vec3 WorldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+enum class KeyboardInputs
+{
+	UP,
+	DOWN,
+	LEFT,
+	RIGHT,
+	FORWARD,
+	BACKWARD
+};
+
 class Camera
 {
 public:
-	Camera(glm::vec3 pos, glm::vec3 target);
-	~Camera();
-
-	enum class KeyboardInputs
+	static Camera* GetCamera()
 	{
-		UP,
-		DOWN,
-		LEFT, 
-		RIGHT,
-		FORWARD,
-		BACKWARD
-	};
+		if (camera == nullptr)
+			camera = new Camera(glm::vec3(0.0f, 0.0f, -5.0f));
 
-	static void HandleInput(KeyboardInputs input);
-	static glm::mat4 GetViewMatrix() { return glm::lookAt(Camera::position, position + direction, up); }
+		return camera;
+	}
+
+	Camera(Camera& other) = delete;
+	void operator=(const Camera&) = delete;
+
+	glm::mat4 GetViewMatrix() { return glm::lookAt(position, position + forward, up); }
+	glm::vec3 GetCameraPosition() { return position; }
+	float GetFOV() { return zoom; }
 
 private:
-	void UpdateCamera(glm::vec3 deltaPos);
-	static glm::vec3 position;
-	static glm::vec3 direction;
-	static glm::vec3 right;
-	static glm::vec3 up;
+	friend class Renderer;
+	Camera(glm::vec3 pos);
+	~Camera();
 
-	const glm::vec3 WorldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+	void HandleInput(KeyboardInputs input, float dt);
+	void RotateCamera(float xOffset, float yOffset);
+	void ChangeZoom(float dt);
+
+	glm::vec3 position;
+	glm::vec3 forward;
+	glm::vec3 right;
+	glm::vec3 up;
+
 	float pitch;
 	float yaw;
+	float zoom;
+protected:
+
+	static Camera* camera;
 };
 
 #endif //!CAMERA_H

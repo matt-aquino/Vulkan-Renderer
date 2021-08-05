@@ -31,7 +31,7 @@
 #include "HelloWorldTriangle.h"
 #include "ModeledObject.h"
 #include "Particles.h"
-
+#include "Camera.h"
 
 class Renderer
 {
@@ -58,7 +58,9 @@ private:
 	// Rendering
 	SDL_Window* appWindow;
 	VkSurfaceKHR renderSurface;
-
+	float deltaX = 0.0f, deltaY = 0.0f, dt = 0.0f;
+	int lastX = 0, lastY = 0;
+	std::chrono::steady_clock::time_point startTime, currentTime, lastTime;
 	bool isAppRunning = true;
 	
 	VulkanSwapChain vulkanSwapChain;
@@ -93,7 +95,8 @@ protected:
 	void CreateSwapChain();
 	void CreateImages();
 	void RecreateSwapChain();
-	
+	void HandleKeyboardInput(const Uint8* keystates);
+	void HandleMouseMotion(int x, int y);
 };
 
 

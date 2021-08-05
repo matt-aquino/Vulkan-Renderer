@@ -20,6 +20,7 @@
 #include <vulkan/vulkan.h>
 #include "VulkanDevice.h"
 #include "HelperStructs.h"
+#include "Camera.h"
 
 #define SHADERPATH "Shaders/"
 
@@ -83,8 +84,6 @@ protected:
 	std::vector<VkSemaphore> renderCompleteSemaphores, presentCompleteSemaphores;
 	std::vector<VkFence> inFlightFences, imagesInFlight;
 	const int MAX_FRAMES_IN_FLIGHT = 3; // we need 1 fence per frame. since we're triple buffering, that means 3 fences
-
-
 };
 
 #endif // !VULKANSCENE_H

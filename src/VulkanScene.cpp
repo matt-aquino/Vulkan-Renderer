@@ -2,7 +2,6 @@
 
 VulkanScene::VulkanScene()
 {
-
 }
 
 

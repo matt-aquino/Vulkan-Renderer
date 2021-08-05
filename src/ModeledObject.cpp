@@ -522,10 +522,11 @@ void ModeledObject::CreateSyncObjects(const VulkanSwapChain& swapChain)
 
 void ModeledObject::CreateUniforms(const VulkanSwapChain& swapChain)
 {
-	ubo.cameraPosition = glm::vec3(0.0f, 0.0f, -10.0f);
+	Camera* const camera = Camera::GetCamera();
+	ubo.cameraPosition = camera->GetCameraPosition();
 	ubo.model = glm::mat4(1.0f);
-	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), ubo.cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
-	ubo.projection = glm::perspective(glm::radians(90.0f), float(swapChain.swapChainDimensions.width / swapChain.swapChainDimensions.height), 0.1f, 1000.0f);
+	ubo.view = camera->GetViewMatrix();
+	ubo.projection = glm::perspective(glm::radians(camera->GetFOV()), float(swapChain.swapChainDimensions.width / swapChain.swapChainDimensions.height), 0.1f, 1000.0f);
 	ubo.projection[1][1] *= -1;	
 }
 
@@ -586,11 +587,12 @@ void ModeledObject::UpdateUniforms(uint32_t currentFrame)
 	static auto startTime = std::chrono::high_resolution_clock::now();
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count(); // grab time since start of application
-	
+	Camera* const camera = Camera::GetCamera();
+
 	// order matters: scale -> rotate -> translate
 	ubo.model = glm::scale(glm::vec3(0.25f, 0.25f, 0.25f)) * glm::translate(glm::vec3(0.0f, -0.5f, 2.0f)) * glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), ubo.cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.cameraPosition = camera->GetCameraPosition();
+	ubo.view = camera->GetViewMatrix();
 
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 

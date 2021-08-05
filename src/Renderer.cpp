@@ -57,6 +57,8 @@ void Renderer::CreateAppWindow()
         throw std::runtime_error("Could not create SDL window.");
 
     SDL_SetWindowResizable(appWindow, SDL_TRUE);
+    SDL_SetRelativeMouseMode(SDL_TRUE);
+
     // Get WSI extensions from SDL (we can add more if we like - we just can't remove these)
     if (!SDL_Vulkan_GetInstanceExtensions(appWindow, &extensionCount, NULL))
         throw std::runtime_error("Could not get the number of required instance extensions from SDL.");
@@ -123,106 +125,79 @@ void Renderer::CreateVKSurface()
 void Renderer::RunApp()
 {
     SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str());
+
     VulkanReturnValues returnValues;
-    Camera camera = Camera(glm::vec3(0.0f, 0.0f, -5.0f), glm::vec3(0.0f));
-    
+    Camera* const camera = Camera::GetCamera();
 
     // Poll for user input.
     while (isAppRunning) {
 
         SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-
-            switch (event.type) {
-
-            // user hit X window
-            case SDL_QUIT:
-                isAppRunning = false;
-                break;
-
-             // keyboard event
-            case SDL_KEYDOWN:
+        while (SDL_PollEvent(&event)) 
+        {
+            switch (event.type) 
             {
-                switch (event.key.keysym.scancode)
-                {
-                    #pragma region SCENE_CHANGE
-                                case SDL_SCANCODE_RIGHT:
-                                    sceneIndex = (sceneIndex + 1) % scenesList.size();
-                                    SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
-                                    break;
+                // user hit X window
+                case SDL_QUIT:
+                    isAppRunning = false;
+                    break;
 
-                                case SDL_SCANCODE_LEFT:
-                                    if (sceneIndex == 0)
-                                        sceneIndex = scenesList.size() - 1;
-                    
-                                    else
-                                        sceneIndex--;
+                // scene change
+                case SDL_KEYDOWN:
+                    switch (event.key.keysym.scancode)
+                    {
+                        case SDL_SCANCODE_LEFT:
 
-                                    SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
-                                    break;
+                            if (sceneIndex == 0)
+                                sceneIndex = static_cast<uint32_t>(scenesList.size()) - 1;
 
-                #pragma endregion
+                            else
+                                sceneIndex--;
 
-                    // close application
-                    case SDL_SCANCODE_ESCAPE:
-                        isAppRunning = false;
-                        break;
+                            SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
+                            break;
 
-                    #pragma region CAMERA_MOVEMENT
-                                case SDL_SCANCODE_A:
-                                    camera.HandleInput(Camera::KeyboardInputs::LEFT);
-                                    break;
+                        case SDL_SCANCODE_RIGHT:
+                            sceneIndex = (sceneIndex + 1) % scenesList.size();
+                            SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
+                            break;
 
-                                case SDL_SCANCODE_D:
-                                    camera.HandleInput(Camera::KeyboardInputs::RIGHT);
-                                    break;
+                    }
+                    break;
 
-                                case SDL_SCANCODE_W:
-                                    camera.HandleInput(Camera::KeyboardInputs::FORWARD);
-                                    break;
+                case SDL_WINDOWEVENT:
+                    if (event.window.event == SDL_WINDOWEVENT_MINIMIZED)
+                    {
+                        windowMinimized = true;
+                    }
 
-                                case SDL_SCANCODE_S:
-                                    camera.HandleInput(Camera::KeyboardInputs::BACKWARD);
-                                    break;
-
-                                case SDL_SCANCODE_Q:
-                                    camera.HandleInput(Camera::KeyboardInputs::DOWN);
-                                    break;
-
-                                case SDL_SCANCODE_E:
-                                    camera.HandleInput(Camera::KeyboardInputs::UP);
-                                    break;
-
-                #pragma endregion
-                    default:
-                        break;
-                }
-            }
-                break;
-                
-            #pragma region WINDOW_SIZE
-            case SDL_WINDOWEVENT:
-                if (event.window.event == SDL_WINDOWEVENT_MINIMIZED)
-                {
-                    windowMinimized = true;
-                }
-
-                if (event.window.event == SDL_WINDOWEVENT_RESTORED)
-                {
-                    RecreateSwapChain();
-                    windowMinimized = false;
-                }
-
-                break;
-
-#pragma endregion
-
-            default:
-                // Do nothing.
-                break;
+                    if (event.window.event == SDL_WINDOWEVENT_RESTORED)
+                    {
+                        RecreateSwapChain();
+                        windowMinimized = false;
+                    }
+                    break;
+                default:
+                    // Do nothing.
+                    break;
             }
         }
 
+
+
+        currentTime = std::chrono::high_resolution_clock::now();
+        dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+        lastTime = currentTime;
+
+        // handle user input before next frame
+        int currentMouseX, currentMouseY;
+
+        const Uint8* keystates = SDL_GetKeyboardState(NULL);
+        SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
+
+        HandleKeyboardInput(keystates);
+        HandleMouseMotion(currentMouseX, currentMouseY);
+        
         // don't run the scene while the scene is minimized
         if (!windowMinimized)
         {
@@ -466,4 +441,42 @@ bool Renderer::checkValidationLayerSupport()
     }
 
     return true;
+}
+
+void Renderer::HandleKeyboardInput(const Uint8* keystates)
+{
+    Camera* camera = Camera::GetCamera();
+
+    if (keystates[SDL_SCANCODE_ESCAPE])
+        isAppRunning = false;
+
+    // camera movement
+    if (keystates[SDL_SCANCODE_A])
+        camera->HandleInput(KeyboardInputs::LEFT, dt);
+
+    if (keystates[SDL_SCANCODE_D])
+        camera->HandleInput(KeyboardInputs::RIGHT, dt);
+
+    if (keystates[SDL_SCANCODE_W])
+        camera->HandleInput(KeyboardInputs::FORWARD, dt);
+
+    if (keystates[SDL_SCANCODE_S])
+        camera->HandleInput(KeyboardInputs::BACKWARD, dt);
+
+    if (keystates[SDL_SCANCODE_Q])
+        camera->HandleInput(KeyboardInputs::DOWN, dt);
+
+    if (keystates[SDL_SCANCODE_E])
+        camera->HandleInput(KeyboardInputs::UP, dt);
+}
+
+void Renderer::HandleMouseMotion(int x, int y)
+{
+    // check if current motion is less than/greater than last motion
+    float sensivity = 0.1f;
+
+    deltaX = x * sensivity;
+    deltaY = y * sensivity;
+
+    Camera::GetCamera()->RotateCamera(deltaX, deltaY);
 }
