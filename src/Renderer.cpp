@@ -30,10 +30,10 @@ Renderer::Renderer()
 
 
     // Create our scenes
-    //HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
+    HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
     ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
     //Particles* scene3 = new Particles("Particles", vulkanSwapChain);
-    //scenesList.push_back(scene1);
+    scenesList.push_back(scene1);
     scenesList.push_back(scene2);
     //scenesList.push_back(scene3);
 }

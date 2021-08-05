@@ -175,6 +175,7 @@ VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain
 void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	Camera* const camera = Camera::GetCamera();
 
 	// Steps for Creating Uniform Buffers
 	// 	   1. Define your values
@@ -183,8 +184,9 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	// 
 	// create uniform matrices
 	ubo.model = glm::mat4(1.0f);
-	ubo.view = glm::translate(glm::mat4(1.0f), cameraPosition);
-	pushConstants.projectionMatrix = glm::perspective(glm::radians(90.0f), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
+	ubo.view = camera->GetViewMatrix();
+	pushConstants.projectionMatrix = glm::perspective(glm::radians(camera->GetFOV()), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
+	pushConstants.projectionMatrix[1][1] *= -1; 
 
 	// create descriptor sets for UBO
 	VkDescriptorSetLayoutBinding uboBinding = {};
@@ -265,6 +267,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	Camera* const camera = Camera::GetCamera();
 
 	// Calculate time since last frame
 	static auto startTime = std::chrono::high_resolution_clock::now();
@@ -272,8 +275,7 @@ void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count(); // grab time since start of application
 
 	ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 1.0f), cameraPosition, glm::vec3(0.0f, 1.0f, 0.0f));
-	pushConstants.projectionMatrix = glm::perspective(glm::radians(90.0f), graphicsPipeline.viewport.width / graphicsPipeline.viewport.height, 0.1f, 100.0f);
+	ubo.view = camera->GetViewMatrix();
 	
 	void* data;
 	vkMapMemory(device, graphicsPipeline.uniformBuffersMemory[currentImage], 0, sizeof(UniformBufferObject), 0, &data);
