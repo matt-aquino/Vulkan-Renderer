@@ -30,12 +30,15 @@ Renderer::Renderer()
 
 
     // Create our scenes
-    HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
-    ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
-    Particles* scene3 = new Particles("Particles", vulkanSwapChain);
-    scenesList.push_back(scene1);
-    scenesList.push_back(scene2);
-    scenesList.push_back(scene3);
+   //HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
+   //ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
+   //Particles* scene3 = new Particles("Particles", vulkanSwapChain);
+    StencilBuffer* scene4 = new StencilBuffer("Object Outline", vulkanSwapChain);
+
+    //scenesList.push_back(scene1);
+    //scenesList.push_back(scene2);
+    //scenesList.push_back(scene3);
+    scenesList.push_back(scene4);
 }
 
 
@@ -204,7 +207,7 @@ void Renderer::RunApp()
         // don't run the scene while the scene is minimized
         if (!windowMinimized)
         {
-            returnValues = scenesList[sceneIndex]->RunScene(vulkanSwapChain);
+            returnValues = scenesList[sceneIndex]->DrawScene(vulkanSwapChain);
             
             if (returnValues == VulkanReturnValues::VK_SWAPCHAIN_OUT_OF_DATE)
                 RecreateSwapChain();
@@ -249,16 +252,18 @@ void Renderer::CleanUp()
 
 void Renderer::CreateSwapChain()
 {
+    VkPhysicalDevice physical = VulkanDevice::GetVulkanDevice()->GetPhysicalDevice();
+
     // Query for swap chain capabilities
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), renderSurface, &vulkanSwapChain.surfaceCapabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical, renderSurface, &vulkanSwapChain.surfaceCapabilities);
     uint32_t formatCount, presentModesCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), renderSurface, &formatCount, nullptr);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), renderSurface, &presentModesCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physical, renderSurface, &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(physical, renderSurface, &presentModesCount, nullptr);
 
     if (formatCount != 0)
     {
         vulkanSwapChain.surfaceFormats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), renderSurface, &formatCount, vulkanSwapChain.surfaceFormats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(physical, renderSurface, &formatCount, vulkanSwapChain.surfaceFormats.data());
     }
 
     else
@@ -267,7 +272,7 @@ void Renderer::CreateSwapChain()
     if (presentModesCount != 0)
     {
         vulkanSwapChain.surfacePresentModes.resize(presentModesCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), renderSurface, &presentModesCount, vulkanSwapChain.surfacePresentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(physical, renderSurface, &presentModesCount, vulkanSwapChain.surfacePresentModes.data());
     }
 
     else

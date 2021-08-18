@@ -12,9 +12,9 @@ public:
 	Particles(std::string name, const VulkanSwapChain & swapChain);
 	~Particles();
 
-	void CreateScene() override;
+	void RecordScene() override;
 	void RecreateScene(const VulkanSwapChain& swapChain) override;
-	VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) override;
+	VulkanReturnValues DrawScene(const VulkanSwapChain& swapChain) override;
 	void DestroyScene(bool isRecreation) override;
 
 

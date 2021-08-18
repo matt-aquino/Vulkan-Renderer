@@ -21,11 +21,13 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-Model::Model(std::string dir, std::string fileName, std::string imageName)
+Model::Model(std::string fol, std::string fileName, const VkCommandPool& commandPool)
 {
-	directory = dir;
+	folder = fol;
 	file = fileName;
-	image = imageName;
+	loadModel(folder, file, commandPool);
+	createVertexBuffer(commandPool);
+	createIndexBuffer(commandPool);
 }
 
 
@@ -34,31 +36,28 @@ Model::~Model()
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	vkDestroyBuffer(device, vertexBuffer, nullptr);
 	vkDestroyBuffer(device, indexBuffer, nullptr);
-	vkDestroySampler(device, textureSampler, nullptr);
-	vkDestroyImageView(device, textureView, nullptr);
-	vkDestroyImage(device, texture, nullptr);
 	vkFreeMemory(device, vertexBufferMemory, nullptr);
 	vkFreeMemory(device, indexBufferMemory, nullptr);
-	vkFreeMemory(device, textureMemory, nullptr);
+
+	for (size_t i = 0; i < textures.size(); i++)
+	{
+		vkDestroyImage(device, textures[i], nullptr);
+		vkDestroyImageView(device, textureViews[i], nullptr);
+		vkDestroySampler(device, textureSamplers[i], nullptr);
+		vkFreeMemory(device, textureMemories[i], nullptr);
+	}
 }
 
-void Model::CreateModel(const VkCommandPool& commandPool)
-{
-	// figure out how to order creation of the model
-	// once we do that, figure out texturing for the chest
-	loadModel(directory, file);
-	loadTexture(image, commandPool);
-}
-
-void Model::loadModel(std::string dir, std::string fileName)
+void Model::loadModel(std::string fol, std::string fileName, const VkCommandPool& commandPool)
 {
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> materials;
 	std::string warn, err;
+	std::vector<std::string> textureNames;
 
 	// load in vertex and material data
-	if (tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, ("models/" + dir + fileName).c_str(), ("models/" + dir).c_str()))
+	if (tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, (DIRECTORY + fol + fileName).c_str(), (DIRECTORY + fol).c_str()))
 	{
 		std::unordered_map<ModelVertex, uint32_t> uniqueVertices{};
 
@@ -116,20 +115,54 @@ void Model::loadModel(std::string dir, std::string fileName)
 			};
 
 			material.specularExponent = mat.shininess;
+
+			// load in textures
+			if (mat.diffuse_texname != "")
+				textureNames.push_back(mat.diffuse_texname);
+
+			if (mat.normal_texname != "")
+				textureNames.push_back(mat.normal_texname);
+
+			if (mat.alpha_texname != "")
+				textureNames.push_back(mat.alpha_texname);
+
+			if (mat.metallic_texname != "")
+				textureNames.push_back(mat.metallic_texname);
+
+			if (mat.displacement_texname != "")
+				textureNames.push_back(mat.displacement_texname);
+
+			if (mat.emissive_texname != "")
+				textureNames.push_back(mat.emissive_texname);
+
 		}
 	}
 
 	else
 		throw std::runtime_error("Failed to load model!");
 	
+	size_t numTextures = textureNames.size();
+	if (numTextures > 0)
+	{
+		textures.resize(numTextures);
+		textureViews.resize(numTextures);
+		textureSamplers.resize(numTextures);
+		textureMemories.resize(numTextures);
+
+		for (std::string name : textureNames)
+		{
+			loadTexture(name, commandPool);
+		}
+	}
 }
 
 void Model::loadTexture(std::string imageName, const VkCommandPool& commandPool)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	static int textureIndex = 0;
 
 	int width, height, channels;
-	stbi_uc* pixels = stbi_load(("models/" + imageName).c_str(), &width, &height, &channels, STBI_rgb_alpha);
+	stbi_uc* pixels = stbi_load((DIRECTORY + folder + imageName).c_str(), &width, &height, &channels, STBI_rgb_alpha);
 	if (!pixels)
 		throw std::runtime_error("Failed to load texture image");
 
@@ -149,19 +182,20 @@ void Model::loadTexture(std::string imageName, const VkCommandPool& commandPool)
 	stbi_image_free(pixels);
 
 	createImages(width, height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture, textureMemory);
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textures[textureIndex], textureMemories[textureIndex]);
 
-	transitionImageLayout(commandPool, texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-	copyBufferToImage(commandPool, stagingBuffer, texture, static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1);
-	transitionImageLayout(commandPool, texture, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	transitionImageLayout(commandPool, textures[textureIndex], VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copyBufferToImage(commandPool, stagingBuffer, textures[textureIndex], static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1);
+	transitionImageLayout(commandPool, textures[textureIndex], VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 
-	createImageViews(texture, VK_FORMAT_R8G8B8A8_SRGB);
-	createTextureSampler();
-}
+	createImageViews(textures[textureIndex], VK_FORMAT_R8G8B8A8_SRGB, textureIndex);
+	createTextureSampler(textureIndex);
 
+	++textureIndex;
+}
 
 void Model::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory)
 {
@@ -296,7 +330,7 @@ void Model::createImages(uint32_t width, uint32_t height, uint32_t depth, VkImag
 	vkBindImageMemory(device, image, imageMemory, 0);
 }
 
-void Model::createImageViews(VkImage image, VkFormat format)
+void Model::createImageViews(VkImage image, VkFormat format, uint32_t index)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
@@ -311,11 +345,11 @@ void Model::createImageViews(VkImage image, VkFormat format)
 	viewInfo.subresourceRange.baseArrayLayer = 0;
 	viewInfo.subresourceRange.layerCount = 1;
 
-	if (vkCreateImageView(device, &viewInfo, nullptr, &textureView) != VK_SUCCESS)
+	if (vkCreateImageView(device, &viewInfo, nullptr, &textureViews[index]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create image view");
 }
 
-void Model::createTextureSampler()
+void Model::createTextureSampler(uint32_t index)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
@@ -336,7 +370,7 @@ void Model::createTextureSampler()
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 0.0f;
 
-	if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS)
+	if (vkCreateSampler(device, &samplerInfo, nullptr, &textureSamplers[index]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create texture sampler");
 }
 

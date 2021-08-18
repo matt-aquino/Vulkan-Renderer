@@ -21,26 +21,18 @@ ModeledObject::ModeledObject(std::string name, const VulkanSwapChain& swapChain)
 {
 	sceneName = name;
 
-	object = new Model("Zelda Chest/", "Medium_Chest.obj", "Zelda Chest/MediMM00.png");
-
 	CreateCommandPool();
-	object->CreateModel(commandPool);
+	object = new Model("Zelda Chest/", "Medium_Chest.obj", commandPool);
 
 	CreateRenderPass(swapChain);
 	CreateUniforms(swapChain);
 	CreateFramebuffer(swapChain);
 	CreateCommandBuffers();
 	CreateSyncObjects(swapChain);
-
-	object->createVertexBuffer(commandPool);
-
-	object->createIndexBuffer(commandPool);
-
 	CreateDescriptorSets(swapChain);
-
 	CreateGraphicsPipeline(swapChain);
 
-	CreateScene();
+	RecordScene();
 }
 
 
@@ -56,7 +48,7 @@ ModeledObject::~ModeledObject()
 	DestroyScene(false);
 }
 
-void ModeledObject::CreateScene()
+void ModeledObject::RecordScene()
 {
 
 	// begin recording command buffers
@@ -122,10 +114,10 @@ void ModeledObject::RecreateScene(const VulkanSwapChain& swapChain)
 	CreateDescriptorSets(swapChain);
 	CreateGraphicsPipeline(swapChain);
 
-	CreateScene();
+	RecordScene();
 }
 
-VulkanReturnValues ModeledObject::RunScene(const VulkanSwapChain& swapChain)
+VulkanReturnValues ModeledObject::DrawScene(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
@@ -620,7 +612,10 @@ void ModeledObject::CreateCommandBuffers()
 void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	const std::vector<VkImageView> imageViews = object->getImageViews();
+	const std::vector<VkSampler> samplers = object->getSamplers();
 
+#pragma region BINDINGS
 	// create descriptor sets for UBO
 	VkDescriptorSetLayoutBinding uboBinding = {};
 	uboBinding.binding = 0;
@@ -629,15 +624,21 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	uboBinding.pImmutableSamplers = nullptr;
 
-	// create descriptor set for texture
-	VkDescriptorSetLayoutBinding samplerBinding{};
-	samplerBinding.binding = 1;
-	samplerBinding.descriptorCount = 1;
-	samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	samplerBinding.pImmutableSamplers = nullptr;
-	samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	size_t numSamplers = object->getSamplers().size();
+	std::vector<VkDescriptorSetLayoutBinding> bindings = { uboBinding };
 
-	std::array<VkDescriptorSetLayoutBinding, 2> bindings = { uboBinding, samplerBinding };
+	for (size_t i = 0; i < numSamplers; i++)
+	{
+		// create descriptor set for texture
+		VkDescriptorSetLayoutBinding samplerBinding{};
+		samplerBinding.binding = 1 + i;
+		samplerBinding.descriptorCount = 1;
+		samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		samplerBinding.pImmutableSamplers = nullptr;
+		samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		bindings.push_back(samplerBinding);
+	}
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -646,6 +647,8 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 
 	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set layout!");
+
+#pragma endregion
 
 	size_t swapChainSize = swapChain.swapChainImages.size();
 
@@ -658,6 +661,8 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			graphicsPipeline.uniformBuffers[i], graphicsPipeline.uniformBuffersMemory[i]);
 	}
+
+#pragma region POOLS_SETS_LAYOUT
 
 	// allocate a descriptor set for each frame
 	std::array<VkDescriptorPoolSize, 2> poolSize = {};
@@ -675,6 +680,8 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor pool");
 
+	graphicsPipeline.isDescriptorPoolEmpty = false;
+
 	std::vector<VkDescriptorSetLayout> layout(swapChainSize, graphicsPipeline.descriptorSetLayout);
 	VkDescriptorSetAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -686,6 +693,12 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	if (vkAllocateDescriptorSets(device, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate descriptor sets");
 
+#pragma endregion
+
+#pragma region WRITES
+
+	std::vector<VkWriteDescriptorSet> descriptorWrites(1 + numSamplers);
+
 	for (size_t i = 0; i < swapChainSize; i++)
 	{
 		VkDescriptorBufferInfo bufferInfo = {};
@@ -693,12 +706,6 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject);
 
-		VkDescriptorImageInfo imageInfo{};
-		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imageInfo.imageView = object->getImageView();
-		imageInfo.sampler = object->getSampler();
-
-		std::array<VkWriteDescriptorSet, 2> descriptorWrites = {};
 		descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 		descriptorWrites[0].dstSet = graphicsPipeline.descriptorSets[i];
 		descriptorWrites[0].dstBinding = 0;
@@ -706,21 +713,26 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		descriptorWrites[0].descriptorCount = 1;
 		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWrites[0].pBufferInfo = &bufferInfo;
-		descriptorWrites[0].pImageInfo = nullptr; // used for descriptors that refer to image data
-		descriptorWrites[0].pTexelBufferView = nullptr; // used for descriptors that refer to buffer views
 
-		descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrites[1].dstSet = graphicsPipeline.descriptorSets[i];
-		descriptorWrites[1].dstBinding = 1;
-		descriptorWrites[1].dstArrayElement = 0;
-		descriptorWrites[1].descriptorCount = 1;
-		descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descriptorWrites[1].pBufferInfo = nullptr;
-		descriptorWrites[1].pImageInfo = &imageInfo; // used for descriptors that refer to image data
-		descriptorWrites[1].pTexelBufferView = nullptr; // used for descriptors that refer to buffer views
+		for (size_t j = 0; j < numSamplers; j++)
+		{
+			VkDescriptorImageInfo imageInfo{};
+			imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			imageInfo.imageView = imageViews[j];
+			imageInfo.sampler = samplers[j];
 
+			descriptorWrites[j + 1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrites[j + 1].dstSet = graphicsPipeline.descriptorSets[i];
+			descriptorWrites[j + 1].dstBinding = j + 1;
+			descriptorWrites[j + 1].dstArrayElement = 0;
+			descriptorWrites[j + 1].descriptorCount = 1;
+			descriptorWrites[j + 1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			descriptorWrites[j + 1].pImageInfo = &imageInfo; // used for descriptors that refer to image data
+		}
+
+		
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 
-	graphicsPipeline.isDescriptorPoolEmpty = false;
+#pragma endregion
 }

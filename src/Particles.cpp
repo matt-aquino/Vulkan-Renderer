@@ -23,7 +23,7 @@ Particles::Particles(std::string name, const VulkanSwapChain& swapChain)
 	CreateGraphicsDescriptorSets(swapChain);
 	CreateGraphicsPipeline(swapChain);
 
-	CreateScene();
+	RecordScene();
 
 }
 
@@ -31,7 +31,7 @@ Particles::~Particles()
 {
 }
 
-void Particles::CreateScene()
+void Particles::RecordScene()
 {
 	VkRenderPassBeginInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -104,10 +104,10 @@ void Particles::RecreateScene(const VulkanSwapChain& swapChain)
 	CreateGraphicsDescriptorSets(swapChain);
 	CreateGraphicsPipeline(swapChain);
 
-	CreateScene();
+	RecordScene();
 }
 
-VulkanReturnValues Particles::RunScene(const VulkanSwapChain& swapChain)
+VulkanReturnValues Particles::DrawScene(const VulkanSwapChain& swapChain)
 {
 
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
@@ -700,7 +700,7 @@ void Particles::CreateComputePipeline()
 	computePipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	computePipelineInfo.basePipelineIndex = -1;
 
-	if (vkCreateComputePipelines(device, nullptr, 1, &computePipelineInfo, nullptr, &computePipeline.pipeline))
+	if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, &computePipeline.pipeline))
 		throw std::runtime_error("Failed to create compute pipeline");
 
 	vkDestroyShaderModule(device, compShaderModule, nullptr);

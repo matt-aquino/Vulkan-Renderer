@@ -32,10 +32,10 @@ HelloWorldTriangle::HelloWorldTriangle(std::string name, const VulkanSwapChain& 
 	CreateCommandPool();
 	CreateCommandBuffers();
 	CreateVertexBuffer();
-	CreateScene();
+	RecordScene();
 }
 
-void HelloWorldTriangle::CreateScene() 
+void HelloWorldTriangle::RecordScene() 
 {	
 	// begin recording command buffers
 
@@ -91,10 +91,10 @@ void HelloWorldTriangle::RecreateScene(const VulkanSwapChain& swapChain)
 	CreateFramebuffers(swapChain);
 	CreateCommandBuffers();
 	CreateVertexBuffer();
-	CreateScene();
+	RecordScene();
 }
 
-VulkanReturnValues HelloWorldTriangle::RunScene(const VulkanSwapChain& swapChain)
+VulkanReturnValues HelloWorldTriangle::DrawScene(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 

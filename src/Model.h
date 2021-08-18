@@ -23,28 +23,26 @@
 #include "HelperStructs.h"
 #include "VulkanDevice.h"
 
-
 class Model
 {
 public:
-	Model(std::string dir, std::string fileName, std::string imageName);
+	Model(std::string folder, std::string objFile, const VkCommandPool& commandPool);
 	~Model();
 
 	std::vector<ModelVertex> getVertices() { return vertices; }
 	std::vector<uint32_t> getIndices() { return indices; }
 	VkBuffer getVertexBuffer() { return vertexBuffer; }
 	VkBuffer getIndexBuffer() { return indexBuffer; }
-	VkImageView getImageView() { return textureView; }
-	VkSampler getSampler() { return textureSampler; }
+	std::vector<VkImageView> getImageViews() { return textureViews; }
+	std::vector<VkSampler> getSamplers() { return textureSamplers; }
+
+
+private:
+	void loadModel(std::string fol, std::string fileName, const VkCommandPool& commmandPool);
+	void loadTexture(std::string imageName, const VkCommandPool& commandPool);
 
 	void createVertexBuffer(const VkCommandPool& commandPool);
 	void createIndexBuffer(const VkCommandPool& commandPool);
-	
-	void CreateModel(const VkCommandPool& commandPool);
-
-private:
-	void loadModel(std::string dir, std::string fileName);
-	void loadTexture(std::string imageName, const VkCommandPool& commandPool);
 
 	// ** Allocate a buffer of memory based on specifications **
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
@@ -53,9 +51,9 @@ private:
 
 	void createImages(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
 
-	void createImageViews(VkImage image, VkFormat format);
+	void createImageViews(VkImage image, VkFormat format, uint32_t index);
 
-	void createTextureSampler();
+	void createTextureSampler(uint32_t index);
 
 	// ** Transition images layouts **
 	void transitionImageLayout(const VkCommandPool& commandPool, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
@@ -63,19 +61,22 @@ private:
 	// ** Copy buffer data into an image **
 	void copyBufferToImage(const VkCommandPool& commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t depth);
 
-	std::string directory, file, image;
-	Material material;
 
-	VkImage texture;
-	VkImageView textureView;
-	VkSampler textureSampler;
-	VkDeviceMemory textureMemory;
+	std::vector<VkImage> textures;
+	std::vector<VkImageView> textureViews;
+	std::vector<VkSampler> textureSamplers;
+	std::vector<VkDeviceMemory> textureMemories;
 
 	std::vector<ModelVertex> vertices;
 	std::vector<uint32_t> indices;
 
 	VkBuffer vertexBuffer, indexBuffer;
 	VkDeviceMemory vertexBufferMemory, indexBufferMemory;
+
+	const std::string DIRECTORY = "models/";
+	std::string folder, file;
+	Material material;
+
 
 public:
 	Material getMaterial() { return material; }

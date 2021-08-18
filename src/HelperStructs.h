@@ -274,38 +274,6 @@ struct Particle
 	alignas(16)glm::vec3 position;
 	alignas(16)glm::vec3 velocity;
 	alignas(16)glm::vec3 color;
-	/*
-	static VkVertexInputBindingDescription getBindingDescription()
-	{
-		VkVertexInputBindingDescription bindDesc = {};
-		bindDesc.binding = 0;
-		bindDesc.stride = sizeof(Particle);
-		bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		return bindDesc;
-	}
-
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
-	{
-		std::array<VkVertexInputAttributeDescription, 3> attrDesc{};
-		attrDesc[0].binding = 0;
-		attrDesc[0].location = 0; // match the location within the shader
-		attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT; // match format within shader (float, vec2, vec3, vec4,)
-		attrDesc[0].offset = offsetof(Particle, position);
-
-		attrDesc[1].binding = 0;
-		attrDesc[1].location = 1;
-		attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrDesc[1].offset = offsetof(Particle, velocity);
-
-		attrDesc[2].binding = 0;
-		attrDesc[2].location = 2;
-		attrDesc[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrDesc[2].offset = offsetof(Particle, color);
-
-		return attrDesc;
-	}
-	*/
 };
 
 namespace std
@@ -325,7 +293,7 @@ struct Material
 	alignas(16)glm::vec3 ambient{};
 	alignas(16)glm::vec3 diffuse{};
 	alignas(16)glm::vec3 specular{};
-	alignas(4)float specularExponent = 0;
+	alignas(4)float specularExponent = 0.0f;
 };
 
 #endif //!HELPERSTRUCTS_H

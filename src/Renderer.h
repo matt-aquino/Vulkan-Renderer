@@ -32,6 +32,7 @@
 #include "ModeledObject.h"
 #include "Particles.h"
 #include "Camera.h"
+#include "StencilBuffer.h"
 
 class Renderer
 {

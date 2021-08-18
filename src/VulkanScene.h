@@ -21,6 +21,7 @@
 #include "VulkanDevice.h"
 #include "HelperStructs.h"
 #include "Camera.h"
+#include "Model.h"
 
 #define SHADERPATH "Shaders/"
 
@@ -32,13 +33,13 @@ public:
 	~VulkanScene();
 
 	// ** Perform initial setup of a scene
-	virtual void CreateScene() = 0;
+	virtual void RecordScene() = 0;
 
 	// ** Recreate the scene when swap chain goes out of date **
 	virtual void RecreateScene(const VulkanSwapChain& swapChain) = 0;
 
 	// ** perform main loop of scene **
-	virtual VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) = 0;
+	virtual VulkanReturnValues DrawScene(const VulkanSwapChain& swapChain) = 0;
 	
 	// ** Clean up resources ** 
 	virtual void DestroyScene(bool isRecreation) = 0;

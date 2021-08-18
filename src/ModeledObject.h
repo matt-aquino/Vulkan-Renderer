@@ -18,7 +18,6 @@
 #define MODELED_OBJECT_H
 
 #include "VulkanScene.h"
-#include "Model.h"
 #include <chrono>
 
 class ModeledObject : public VulkanScene
@@ -28,11 +27,11 @@ public:
 	ModeledObject();
 	~ModeledObject();
 
-	void CreateScene() override;
+	void RecordScene() override;
 
 	void RecreateScene(const VulkanSwapChain& swapChain) override;
 
-	VulkanReturnValues RunScene(const VulkanSwapChain& swapChain) override;
+	VulkanReturnValues DrawScene(const VulkanSwapChain& swapChain) override;
 
 	void DestroyScene(bool isRecreation) override;
 
