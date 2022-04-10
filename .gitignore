@@ -12,6 +12,7 @@
 bin/
 bin-int/
 !models/
+*.sln
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
