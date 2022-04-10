@@ -46,6 +46,12 @@ struct VulkanSwapChain
 	std::vector<VkPresentModeKHR> surfacePresentModes;
 };
 
+struct VulkanBuffer
+{
+	VkBuffer buffer;
+	VkDeviceMemory bufferMemory;
+};
+
 struct VulkanGraphicsPipeline
 {
 	VkPipelineLayout pipelineLayout;
@@ -65,15 +71,13 @@ struct VulkanGraphicsPipeline
 	VkViewport viewport;
 	VkRect2D scissors;
 
-	VkBuffer vertexBuffer, indexBuffer;
-	VkDeviceMemory vertexBufferMemory, indexBufferMemory;
+	// for scenes where vertex data is passed in raw, instead of stored in a mesh
+	std::optional<VulkanBuffer> vertexBuffer; 
+	std::optional<VulkanBuffer> indexBuffer;
 
-	std::vector<VkBuffer> uniformBuffers;
-	std::vector<VkDeviceMemory> uniformBuffersMemory;
+	std::vector<VulkanBuffer> uniformBuffers;
 
-	bool isVertexBufferEmpty = true,
-		 isIndexBufferEmpty = true,
-		 isDepthBufferEmpty = true,
+	bool isDepthBufferEmpty = true,
 		 isDescriptorPoolEmpty = true;
 
 	size_t shaderFileSize;
@@ -109,21 +113,23 @@ struct VulkanGraphicsPipeline
 		size_t uniformBufferSize = uniformBuffers.size();
 		for (size_t i = 0; i < uniformBufferSize; i++)
 		{
-			vkDestroyBuffer(device, uniformBuffers[i], nullptr);
-			vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+			vkDestroyBuffer(device, uniformBuffers[i].buffer, nullptr);
+			vkFreeMemory(device, uniformBuffers[i].bufferMemory, nullptr);
 		}
 
 		// check is buffers are filled before attempting to delete them
-		if (!isVertexBufferEmpty)
+		if (vertexBuffer.has_value())
 		{
-			vkDestroyBuffer(device, vertexBuffer, nullptr);
-			vkFreeMemory(device, vertexBufferMemory, nullptr);
+			vkDestroyBuffer(device, vertexBuffer->buffer, nullptr);
+			vkFreeMemory(device, vertexBuffer->bufferMemory, nullptr);
 		}
-		if (!isIndexBufferEmpty)
+
+		if (indexBuffer.has_value())
 		{
-			vkDestroyBuffer(device, indexBuffer, nullptr);
-			vkFreeMemory(device, indexBufferMemory, nullptr);
+			vkDestroyBuffer(device, indexBuffer->buffer, nullptr);
+			vkFreeMemory(device, indexBuffer->bufferMemory, nullptr);
 		}
+
 		if (!isDepthBufferEmpty)
 		{
 			vkDestroyImageView(device, depthStencilBufferView, nullptr);
@@ -421,17 +427,16 @@ struct Mesh
 {
 	std::vector<ModelVertex> vertices;
 	std::vector<uint32_t> indices;
-	VkBuffer vertexBuffer, indexBuffer;
-	VkDeviceMemory vertexBufferMemory, indexBufferMemory;
+	VulkanBuffer vertexBuffer, indexBuffer;
 	int material_ID;
 
 	void destroyBuffers()
 	{
 		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-		vkDestroyBuffer(device, vertexBuffer, nullptr);
-		vkDestroyBuffer(device, indexBuffer, nullptr);
-		vkFreeMemory(device, vertexBufferMemory, nullptr);
-		vkFreeMemory(device, indexBufferMemory, nullptr);
+		vkDestroyBuffer(device, vertexBuffer.buffer, nullptr);
+		vkDestroyBuffer(device, indexBuffer.buffer, nullptr);
+		vkFreeMemory(device, vertexBuffer.bufferMemory, nullptr);
+		vkFreeMemory(device, indexBuffer.bufferMemory, nullptr);
 	}
 };
 

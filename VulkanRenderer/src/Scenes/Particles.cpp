@@ -315,16 +315,18 @@ void Particles::CreateUniforms(const VulkanSwapChain& swapChain)
 
 	size_t swapChainSize = swapChain.swapChainImages.size();
 	graphicsPipeline.uniformBuffers.resize(swapChainSize);
-	graphicsPipeline.uniformBuffersMemory.resize(swapChainSize);
 
 	// create graphics uniform buffers
 	for (size_t i = 0; i < swapChainSize; i++)
 	{
+		VulkanBuffer ub;
+
 		createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			graphicsPipeline.uniformBuffers[i], graphicsPipeline.uniformBuffersMemory[i]);
+			ub.buffer, ub.bufferMemory);
 
-		copyBuffer(stagingBuffer, graphicsPipeline.uniformBuffers[i], size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+		copyBuffer(stagingBuffer, ub.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+		graphicsPipeline.uniformBuffers[i] = ub;
 	}
 
 	// create compute uniform buffer
@@ -345,9 +347,9 @@ void Particles::UpdateUniforms(uint32_t currentFrame)
 	ubo.view = camera->GetViewMatrix();
 
 	void* data;
-	vkMapMemory(device, graphicsPipeline.uniformBuffersMemory[currentFrame], 0, sizeof(UBO), 0, &data);
+	vkMapMemory(device, graphicsPipeline.uniformBuffers[currentFrame].bufferMemory, 0, sizeof(UBO), 0, &data);
 	memcpy(data, &ubo, sizeof(UBO));
-	vkUnmapMemory(device, graphicsPipeline.uniformBuffersMemory[currentFrame]);
+	vkUnmapMemory(device, graphicsPipeline.uniformBuffers[currentFrame].bufferMemory);
 }
 
 void Particles::CreateRenderPass(const VulkanSwapChain& swapChain)
@@ -807,7 +809,7 @@ void Particles::CreateGraphicsDescriptorSets(const VulkanSwapChain& swapChain)
 	for (size_t i = 0; i < swapChainSize; i++)
 	{
 		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer =	graphicsPipeline.uniformBuffers[i];
+		bufferInfo.buffer =	graphicsPipeline.uniformBuffers[i].buffer;
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UBO);
 

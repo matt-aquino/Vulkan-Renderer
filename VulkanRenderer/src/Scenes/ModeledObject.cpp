@@ -84,8 +84,8 @@ void ModeledObject::RecordScene()
 		{
 
 			// bind vertex, index, and uniform buffers
-			vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &mesh.vertexBuffer, offsets);
-			vkCmdBindIndexBuffer(commandBuffersList[i], mesh.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &mesh.vertexBuffer.buffer, offsets);
+			vkCmdBindIndexBuffer(commandBuffersList[i], mesh.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout,
 				0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
 
@@ -544,9 +544,9 @@ void ModeledObject::UpdateUniforms(uint32_t index)
 	ubo.view = camera->GetViewMatrix();
 
 	void* data;
-	vkMapMemory(device, graphicsPipeline.uniformBuffersMemory[index], 0, sizeof(UniformBufferObject), 0, &data);
+	vkMapMemory(device, graphicsPipeline.uniformBuffers[index].bufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
 	memcpy(data, &ubo, sizeof(UniformBufferObject));
-	vkUnmapMemory(device, graphicsPipeline.uniformBuffersMemory[index]);
+	vkUnmapMemory(device, graphicsPipeline.uniformBuffers[index].bufferMemory);
 }
 
 void ModeledObject::CreateCommandBuffers()
@@ -651,11 +651,10 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	// create uniform buffers for graphics pipeline
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 	graphicsPipeline.uniformBuffers.resize(swapChainSize);
-	graphicsPipeline.uniformBuffersMemory.resize(swapChainSize);
 
 	for (size_t i = 0; i < swapChainSize; i++)
 		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			graphicsPipeline.uniformBuffers[i], graphicsPipeline.uniformBuffersMemory[i]);
+			graphicsPipeline.uniformBuffers[i].buffer, graphicsPipeline.uniformBuffers[i].bufferMemory);
 	
 #pragma region POOLS_SET_LAYOUT
 	uint32_t descriptorCount = static_cast<uint32_t>(swapChainSize);
@@ -696,7 +695,7 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	for (size_t i = 0; i < swapChainSize; i++)
 	{
 		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer = graphicsPipeline.uniformBuffers[i];
+		bufferInfo.buffer = graphicsPipeline.uniformBuffers[i].buffer;
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject);
 

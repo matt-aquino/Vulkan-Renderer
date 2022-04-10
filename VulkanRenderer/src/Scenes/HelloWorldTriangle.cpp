@@ -63,9 +63,8 @@ void HelloWorldTriangle::RecordScene()
 		vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
 
-		VkBuffer buffers[] = { graphicsPipeline.vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, buffers, offsets);
+		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &graphicsPipeline.vertexBuffer->buffer, offsets);
 		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
 		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout, 
 			0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
@@ -208,12 +207,11 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 	graphicsPipeline.uniformBuffers.resize(swapChainSize);
-	graphicsPipeline.uniformBuffersMemory.resize(swapChainSize);
 
 	for (size_t i = 0; i < swapChainSize; i++)
 	{
 		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			graphicsPipeline.uniformBuffers[i], graphicsPipeline.uniformBuffersMemory[i]);
+			graphicsPipeline.uniformBuffers[i].buffer, graphicsPipeline.uniformBuffers[i].bufferMemory);
 	}
 
 	// allocate a descriptor set for each frame
@@ -244,7 +242,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	for (size_t i = 0; i < swapChainSize; i++)
 	{
 		VkDescriptorBufferInfo bufferInfo = {};
-		bufferInfo.buffer = graphicsPipeline.uniformBuffers[i];
+		bufferInfo.buffer = graphicsPipeline.uniformBuffers[i].buffer;
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(UniformBufferObject);
 
@@ -278,9 +276,9 @@ void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
 	ubo.view = camera->GetViewMatrix();
 	
 	void* data;
-	vkMapMemory(device, graphicsPipeline.uniformBuffersMemory[currentImage], 0, sizeof(UniformBufferObject), 0, &data);
+	vkMapMemory(device, graphicsPipeline.uniformBuffers[currentImage].bufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
 	memcpy(data, &ubo, sizeof(UniformBufferObject));
-	vkUnmapMemory(device, graphicsPipeline.uniformBuffersMemory[currentImage]);
+	vkUnmapMemory(device, graphicsPipeline.uniformBuffers[currentImage].bufferMemory);
 	
 }
 
@@ -612,14 +610,15 @@ void HelloWorldTriangle::CreateVertexBuffer()
 	memcpy(data, vertices.data(), (size_t)bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
+	VulkanBuffer vertexBuffer;
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, graphicsPipeline.vertexBuffer, graphicsPipeline.vertexBufferMemory);
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer.buffer, vertexBuffer.bufferMemory);
 
-	copyBuffer(stagingBuffer, graphicsPipeline.vertexBuffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	copyBuffer(stagingBuffer, vertexBuffer.buffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+
+	graphicsPipeline.vertexBuffer = vertexBuffer;
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
-
-	graphicsPipeline.isVertexBufferEmpty = false;
 }

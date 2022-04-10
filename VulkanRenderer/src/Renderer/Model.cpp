@@ -491,11 +491,14 @@ void Model::createVertexBuffer(Mesh& mesh, const VkCommandPool& commandPool)
 	memcpy(data, mesh.vertices.data(), (size_t)bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
+	VulkanBuffer vb;
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mesh.vertexBuffer, mesh.vertexBufferMemory);
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vb.buffer, vb.bufferMemory);
 
-	copyBuffer(commandPool, stagingBuffer, mesh.vertexBuffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	copyBuffer(commandPool, stagingBuffer, vb.buffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+
+	mesh.vertexBuffer = vb;
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -518,11 +521,14 @@ void Model::createIndexBuffer(Mesh& mesh, const VkCommandPool& commandPool)
 	memcpy(data, mesh.indices.data(), (size_t)bufferSize);
 	vkUnmapMemory(device, stagingBufferMemory);
 
+	VulkanBuffer ib;
 
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mesh.indexBuffer, mesh.indexBufferMemory);
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, ib.buffer, ib.bufferMemory);
 
-	copyBuffer(commandPool, stagingBuffer, mesh.indexBuffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	copyBuffer(commandPool, stagingBuffer, ib.buffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+
+	mesh.indexBuffer = ib;
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
