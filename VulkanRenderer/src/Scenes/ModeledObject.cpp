@@ -577,31 +577,21 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	std::vector<VkImageView> imageViews;
 	std::vector<VkSampler> samplers;
+	size_t swapChainSize = swapChain.swapChainImages.size();
+	uint32_t descriptorCount = static_cast<uint32_t>(swapChainSize);
 
 #pragma region DESCRIPTOR_POOL
-	VkDescriptorPoolSize poolSizes[] =
-	{
-		{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-		{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-	};
-	uint32_t poolSizeCount = sizeof(poolSizes) / sizeof(*poolSizes);
+	VkDescriptorPoolSize poolSizes[2] = {};
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[0].descriptorCount = descriptorCount;
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[1].descriptorCount = descriptorCount;
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-	poolInfo.maxSets = 1000 * poolSizeCount;
-	poolInfo.poolSizeCount = poolSizeCount;
+	poolInfo.maxSets = descriptorCount;
+	poolInfo.poolSizeCount = 2;
 	poolInfo.pPoolSizes = poolSizes;
-	//poolInfo.maxSets = descriptorCount + 1;
 
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor pool");
@@ -685,7 +675,6 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		throw std::runtime_error("Failed to create descriptor set layout!");
 #pragma endregion
 
-	size_t swapChainSize = swapChain.swapChainImages.size();
 
 	// create uniform buffers for graphics pipeline
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
@@ -696,13 +685,6 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 			graphicsPipeline.uniformBuffers[i].buffer, graphicsPipeline.uniformBuffers[i].bufferMemory);
 	
 #pragma region POOLS_SET_LAYOUT
-	uint32_t descriptorCount = static_cast<uint32_t>(swapChainSize);
-
-	//VkDescriptorPoolSize poolSizes[2] = {};
-	//poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	//poolSizes[0].descriptorCount = descriptorCount;
-	//poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	//poolSizes[1].descriptorCount = descriptorCount * 2;
 	
 
 	std::vector<VkDescriptorSetLayout> layout(swapChainSize, graphicsPipeline.descriptorSetLayout);
