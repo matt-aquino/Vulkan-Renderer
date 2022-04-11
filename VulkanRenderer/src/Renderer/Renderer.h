@@ -17,11 +17,11 @@
 #ifndef RENDERER_H
 #define RENDERER_H
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_syswm.h>
-#include <SDL2/SDL_vulkan.h>
-#include <glm/glm.hpp>
-#include <vulkan/vulkan.h>
+#include "SDL2/SDL.h"
+#include "SDL2/SDL_syswm.h"
+#include "SDL2/SDL_vulkan.h"
+#include "glm/glm.hpp"
+#include "vulkan/vulkan.h"
 
 #include <algorithm>
 
@@ -42,6 +42,8 @@ public:
 	Renderer();
 	~Renderer();
 
+	static SDL_Window* GetWindow() { return appWindow; }
+	static VkInstance GetVKInstance() { return instance; }
 
 	// helper functions to divide initialization work
 
@@ -56,7 +58,7 @@ public:
 private:
 
 	// Rendering
-	SDL_Window* appWindow;
+	static SDL_Window* appWindow;
 	VkSurfaceKHR renderSurface;
 	float deltaX = 0.0f, deltaY = 0.0f, dt = 0.0f;
 	int lastX = 0, lastY = 0;
@@ -71,7 +73,7 @@ private:
 	std::vector<const char*> extensionsList;
 
 	// Vulkan Info
-	VkInstance instance;
+	static VkInstance instance;
 	VkResult result;
 	std::vector<const char*> validationLayersList = { "VK_LAYER_KHRONOS_validation", };
 

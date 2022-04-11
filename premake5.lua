@@ -44,7 +44,7 @@ project "VulkanRenderer"
 	{
 		"vendor/bin/SDL2/SDL2.lib",
 		"vendor/bin/SDL2/SDL2.dll",
-		"$(VULKAN_SDK)/Lib/vulkan-1.lib"
+		"$(VULKAN_SDK)/Lib/vulkan-1.lib",
 	}
 
 	defines { "_CRT_SECURE_NO_WARNINGS" }

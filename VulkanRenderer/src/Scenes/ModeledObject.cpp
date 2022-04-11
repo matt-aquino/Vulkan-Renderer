@@ -15,6 +15,7 @@
 */
 
 #include "ModeledObject.h"
+#include "Renderer/Renderer.h"
 
 ModeledObject::ModeledObject(std::string name, const VulkanSwapChain& swapChain)
 {
@@ -30,7 +31,7 @@ ModeledObject::ModeledObject(std::string name, const VulkanSwapChain& swapChain)
 	CreateSyncObjects(swapChain);
 	CreateDescriptorSets(swapChain);
 	CreateGraphicsPipeline(swapChain);
-
+	
 	RecordScene();
 }
 
@@ -49,9 +50,8 @@ ModeledObject::~ModeledObject()
 
 void ModeledObject::RecordScene()
 {
-
 	// begin recording command buffers
-
+	
 	for (size_t i = 0; i < commandBuffersList.size(); i++)
 	{
 		VkCommandBufferBeginInfo beginInfo = {};
@@ -76,33 +76,35 @@ void ModeledObject::RecordScene()
 		renderPassInfo.clearValueCount = 2;
 		renderPassInfo.pClearValues = clearColors;
 
-		vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
-
-		VkDeviceSize offsets[] = { 0 };
-		for (Mesh mesh : object->meshes)
-		{
-
-			// bind vertex, index, and uniform buffers
-			vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &mesh.vertexBuffer.buffer, offsets);
-			vkCmdBindIndexBuffer(commandBuffersList[i], mesh.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout,
-				0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
-
-			materialConstants.ambient = object->materials[mesh.material_ID].ambient;
-			materialConstants.diffuse = object->materials[mesh.material_ID].diffuse;
-			materialConstants.specular = object->materials[mesh.material_ID].specular;
-			materialConstants.shininess = object->materials[mesh.material_ID].specularExponent;
-
-			// push material constants
-			vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MaterialConstants), &materialConstants);
-
-			// draw from index buffer
-			vkCmdDrawIndexed(commandBuffersList[i], mesh.indices.size(), 1, 0, 0, 0);
-		}
 		
+		// render models
+		{
+			vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		vkCmdEndRenderPass(commandBuffersList[i]);
+			VkDeviceSize offsets[] = { 0 };
+			for (Mesh mesh : object->meshes)
+			{
+				// bind vertex, index, and uniform buffers
+				vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &mesh.vertexBuffer.buffer, offsets);
+				vkCmdBindIndexBuffer(commandBuffersList[i], mesh.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+				vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout,
+					0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
+
+				materialConstants.ambient = object->materials[mesh.material_ID].ambient;
+				materialConstants.diffuse = object->materials[mesh.material_ID].diffuse;
+				materialConstants.specular = object->materials[mesh.material_ID].specular;
+				materialConstants.shininess = object->materials[mesh.material_ID].specularExponent;
+
+				// push material constants
+				vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(MaterialConstants), &materialConstants);
+
+				// draw from index buffer
+				vkCmdDrawIndexed(commandBuffersList[i], static_cast<uint32_t>(mesh.indices.size()), 1, 0, 0, 0);
+			}
+
+			vkCmdEndRenderPass(commandBuffersList[i]);
+		}
 
 		if (vkEndCommandBuffer(commandBuffersList[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to record command buffer");
@@ -128,26 +130,25 @@ VulkanReturnValues ModeledObject::DrawScene(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
+	// Our state
+	static bool show_demo_window = true;
+	static bool show_another_window = false;
 	uint32_t imageIndex;
-	graphicsPipeline.result = vkAcquireNextImageKHR(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+	graphicsPipeline.result = vkAcquireNextImageKHR(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), swapChain.swapChain, 
+		UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 	if (graphicsPipeline.result == VK_ERROR_OUT_OF_DATE_KHR)
-	{
 		return VulkanReturnValues::VK_SWAPCHAIN_OUT_OF_DATE;
-	}
 
 	else if (graphicsPipeline.result != VK_SUCCESS && graphicsPipeline.result != VK_SUBOPTIMAL_KHR)
-	{
 		throw std::runtime_error("Failed to acquire swap chain image");
-	}
 
 	UpdateUniforms(imageIndex); // update matrices as needed
 
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
-	{
 		vkWaitForFences(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
-	}
 
 	// mark image as now being in use by this frame
 	imagesInFlight[imageIndex] = inFlightFences[currentFrame];
@@ -163,6 +164,9 @@ VulkanReturnValues ModeledObject::DrawScene(const VulkanSwapChain& swapChain)
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &commandBuffersList[imageIndex];
 
+	/*
+	********* RENDERING *************
+	*/
 	VkSemaphore signalSemaphores[] = { renderCompleteSemaphores[currentFrame] };
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
@@ -172,6 +176,9 @@ VulkanReturnValues ModeledObject::DrawScene(const VulkanSwapChain& swapChain)
 	if (vkQueueSubmit(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer!");
 
+	/*
+	********* PRESENTATION *************
+	*/
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
@@ -202,7 +209,7 @@ void ModeledObject::DestroyScene(bool isRecreation)
 
 	graphicsPipeline.destroyGraphicsPipeline(device);
 
-	size_t size = commandBuffersList.size();
+	uint32_t size = static_cast<uint32_t>(commandBuffersList.size());
 	vkFreeCommandBuffers(device, commandPool, size, commandBuffersList.data());
 
 	// these only NEED to be deleted once cleanup happens
@@ -535,11 +542,12 @@ void ModeledObject::UpdateUniforms(uint32_t index)
 
 	auto currentTime = std::chrono::high_resolution_clock::now();
 	float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count(); // grab time since start of application
-	float angle = ((int)time % 360 == 0) ? 0.0f : time;
+	static float angle = 0.0f;
+	angle = glm::mod(time * 45.0f, 360.0f);
 	static Camera* camera = Camera::GetCamera();
 	printf("\rAngle: %f", angle);
 
-	ubo.model = glm::rotate(glm::radians(angle * 45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	ubo.model = glm::rotate(glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
 	ubo.cameraPosition = camera->GetCameraPosition();
 	ubo.view = camera->GetViewMatrix();
 
@@ -569,6 +577,37 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	std::vector<VkImageView> imageViews;
 	std::vector<VkSampler> samplers;
+
+#pragma region DESCRIPTOR_POOL
+	VkDescriptorPoolSize poolSizes[] =
+	{
+		{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+		{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+	};
+	uint32_t poolSizeCount = sizeof(poolSizes) / sizeof(*poolSizes);
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+	poolInfo.maxSets = 1000 * poolSizeCount;
+	poolInfo.poolSizeCount = poolSizeCount;
+	poolInfo.pPoolSizes = poolSizes;
+	//poolInfo.maxSets = descriptorCount + 1;
+
+	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor pool");
+
+	graphicsPipeline.isDescriptorPoolEmpty = false;
+#pragma endregion
 
 #pragma region BINDINGS
 	// gather texture image views and samplers
@@ -624,7 +663,7 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	bindings.push_back(uboBinding);
 
 	// create bindings for samplers
-	for (size_t i = 0; i < numSamplers; i++)
+	for (uint32_t i = 0; i < numSamplers; i++)
 	{
 		// create descriptor set for texture
 		VkDescriptorSetLayoutBinding samplerBinding{};
@@ -659,22 +698,12 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 #pragma region POOLS_SET_LAYOUT
 	uint32_t descriptorCount = static_cast<uint32_t>(swapChainSize);
 
-	VkDescriptorPoolSize poolSizes[2] = {};
-	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSizes[0].descriptorCount = descriptorCount;
-	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = descriptorCount;
-
-	VkDescriptorPoolCreateInfo poolInfo = {};
-	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = 2;
-	poolInfo.pPoolSizes = poolSizes;
-	poolInfo.maxSets = descriptorCount;
-
-	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
-		throw std::runtime_error("Failed to create descriptor pool");
-
-	graphicsPipeline.isDescriptorPoolEmpty = false;
+	//VkDescriptorPoolSize poolSizes[2] = {};
+	//poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	//poolSizes[0].descriptorCount = descriptorCount;
+	//poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	//poolSizes[1].descriptorCount = descriptorCount * 2;
+	
 
 	std::vector<VkDescriptorSetLayout> layout(swapChainSize, graphicsPipeline.descriptorSetLayout);
 	VkDescriptorSetAllocateInfo allocInfo = {};
@@ -707,7 +736,7 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-		for (size_t j = 0; j < numSamplers; j++)
+		for (uint32_t j = 0; j < numSamplers; j++)
 		{
 			VkDescriptorImageInfo imageInfo{};
 			imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -726,4 +755,5 @@ void ModeledObject::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 #pragma endregion
+	
 }

@@ -17,7 +17,6 @@ public:
 	VulkanReturnValues DrawScene(const VulkanSwapChain& swapChain) override;
 	void DestroyScene(bool isRecreation) override;
 
-
 private:
 	void CreateCommandBuffers();
 	void CreateParticles(bool isRecreation);

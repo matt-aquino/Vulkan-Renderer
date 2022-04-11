@@ -35,8 +35,6 @@ public:
 
 	void DestroyScene(bool isRecreation) override;
 
-
-
 private:
 	Model *object;
 
@@ -48,7 +46,6 @@ private:
 	void CreateUniforms(const VulkanSwapChain& swapChain);
 	void UpdateUniforms(uint32_t index);
 	void CreateDescriptorSets(const VulkanSwapChain& swapChain);
-
 	void CreateCommandBuffers();
 
 	VulkanGraphicsPipeline graphicsPipeline;

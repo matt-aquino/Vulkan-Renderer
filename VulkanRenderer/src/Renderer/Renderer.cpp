@@ -17,26 +17,28 @@
 #include "Renderer.h"
 #include "Camera.h"
 
+SDL_Window* Renderer::appWindow = nullptr;
+VkInstance Renderer::instance = VK_NULL_HANDLE;
+
 Renderer::Renderer()
 {
     CreateAppWindow();
     CreateVKInstance();
     CreateVKSurface();
-
     VulkanDevice::GetVulkanDevice()->CreateVulkanDevice(instance, renderSurface);
-
+    
     CreateSwapChain();
     CreateImages();
 
 
     // Create our scenes
-   HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
-   ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
-   Particles* scene3 = new Particles("Particles", vulkanSwapChain);
+   // HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
+    ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
+    //Particles* scene3 = new Particles("Particles", vulkanSwapChain);
 
-    scenesList.push_back(scene1);
+    //scenesList.push_back(scene1);
     scenesList.push_back(scene2);
-    scenesList.push_back(scene3);
+    //scenesList.push_back(scene3);
 }
 
 
@@ -52,13 +54,13 @@ void Renderer::CreateAppWindow()
         throw std::runtime_error("Could not initialize SDL.");
 
     appWindow = SDL_CreateWindow("Vulkan Renderer", SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED, windowWidth, windowHeight, SDL_WINDOW_VULKAN);
+        SDL_WINDOWPOS_CENTERED, windowWidth, windowHeight, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
 
     if (appWindow == NULL)
         throw std::runtime_error("Could not create SDL window.");
 
     SDL_SetWindowResizable(appWindow, SDL_TRUE);
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+    SDL_SetRelativeMouseMode(SDL_FALSE);
 
     // Get WSI extensions from SDL (we can add more if we like - we just can't remove these)
     if (!SDL_Vulkan_GetInstanceExtensions(appWindow, &extensionCount, NULL))
@@ -122,13 +124,13 @@ void Renderer::CreateVKSurface()
         throw std::runtime_error("Could not create a Vulkan surface.");
 }
 
-
 void Renderer::RunApp()
 {
     SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str());
 
     VulkanReturnValues returnValues;
     Camera* const camera = Camera::GetCamera();
+    bool isCameraMoving = false;
 
     // Poll for user input.
     while (isAppRunning) {
@@ -147,6 +149,10 @@ void Renderer::RunApp()
                 case SDL_KEYDOWN:
                     switch (event.key.keysym.scancode)
                     {
+                        case SDL_SCANCODE_ESCAPE:
+                            isAppRunning = false;
+                            break;
+
                         case SDL_SCANCODE_LEFT:
 
                             camera->ResetCamera();
@@ -181,6 +187,17 @@ void Renderer::RunApp()
                         windowMinimized = false;
                     }
                     break;
+
+                case SDL_MOUSEBUTTONDOWN:
+                    if (event.button.button == SDL_BUTTON_RIGHT)
+                        isCameraMoving = true; 
+                    break;
+
+                case SDL_MOUSEBUTTONUP:
+                    if (event.button.button == SDL_BUTTON_RIGHT)
+                        isCameraMoving = false;
+
+
                 default:
                     // Do nothing.
                     break;
@@ -197,8 +214,11 @@ void Renderer::RunApp()
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
         SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
 
-        HandleKeyboardInput(keystates);
-        HandleMouseMotion(currentMouseX, currentMouseY);
+        if (isCameraMoving)
+        {
+            HandleKeyboardInput(keystates);
+            HandleMouseMotion(currentMouseX, currentMouseY);
+        }
         
         // don't run the scene while the scene is minimized
         if (!windowMinimized)
@@ -216,6 +236,8 @@ void Renderer::RunApp()
 
 void Renderer::CleanUp()
 {
+    VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
     // Clear all scenes
     for (VulkanScene* scene : scenesList)
     {
@@ -229,10 +251,10 @@ void Renderer::CleanUp()
     // order is very particular...
     for (VkImageView imageView : vulkanSwapChain.swapChainImageViews)
     {
-        vkDestroyImageView(VulkanDevice::GetVulkanDevice()->logicalDevice, imageView, nullptr);
+        vkDestroyImageView(device, imageView, nullptr);
     }
 
-    vkDestroySwapchainKHR(VulkanDevice::GetVulkanDevice()->logicalDevice, vulkanSwapChain.swapChain, nullptr);
+    vkDestroySwapchainKHR(device, vulkanSwapChain.swapChain, nullptr);
 
     VulkanDevice::GetVulkanDevice()->DeleteLogicalDevice();
 
@@ -247,6 +269,7 @@ void Renderer::CleanUp()
 void Renderer::CreateSwapChain()
 {
     VkPhysicalDevice physical = VulkanDevice::GetVulkanDevice()->GetPhysicalDevice();
+    VkDevice logical = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
     // Query for swap chain capabilities
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical, renderSurface, &vulkanSwapChain.surfaceCapabilities);
@@ -328,11 +351,13 @@ void Renderer::CreateSwapChain()
     // use _TRANSFER_DST_BIT for offscreen rendering (postprocessing, etc)
     createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; 
 
+    VulkanDevice::QueueFamilyIndices indices = VulkanDevice::GetVulkanDevice()->GetFamilyIndices();
+
     // check if using 2 separate queues for rendering and presentation
     // use a different sharing mode accordingly
-    uint32_t queueFamilyIndices[] = { VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value(), VulkanDevice::GetVulkanDevice()->GetFamilyIndices().presentFamily.value() };
+    uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
-    if (VulkanDevice::GetVulkanDevice()->GetFamilyIndices().graphicsFamily.value() != VulkanDevice::GetVulkanDevice()->GetFamilyIndices().presentFamily.value())
+    if (indices.graphicsFamily.value() != indices.presentFamily.value())
     {
         createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         createInfo.queueFamilyIndexCount = 2;
@@ -352,13 +377,13 @@ void Renderer::CreateSwapChain()
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
     
-    result = vkCreateSwapchainKHR(VulkanDevice::GetVulkanDevice()->logicalDevice, &createInfo, nullptr, &vulkanSwapChain.swapChain); // this is breaking...
+    result = vkCreateSwapchainKHR(logical, &createInfo, nullptr, &vulkanSwapChain.swapChain); // this is breaking...
     if (result != VK_SUCCESS)
         throw std::runtime_error("Failed to create swap chain!");
 
-    vkGetSwapchainImagesKHR(VulkanDevice::GetVulkanDevice()->logicalDevice, vulkanSwapChain.swapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(logical, vulkanSwapChain.swapChain, &imageCount, nullptr);
     vulkanSwapChain.swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(VulkanDevice::GetVulkanDevice()->logicalDevice, vulkanSwapChain.swapChain, &imageCount, vulkanSwapChain.swapChainImages.data());
+    vkGetSwapchainImagesKHR(logical, vulkanSwapChain.swapChain, &imageCount, vulkanSwapChain.swapChainImages.data());
 
     vulkanSwapChain.swapChainImageFormat = surfaceFormat.format;
     vulkanSwapChain.swapChainDimensions = vulkanSwapChain.surfaceCapabilities.currentExtent;
@@ -449,26 +474,23 @@ void Renderer::HandleKeyboardInput(const Uint8* keystates)
 {
     Camera* camera = Camera::GetCamera();
 
-    if (keystates[SDL_SCANCODE_ESCAPE])
-        isAppRunning = false;
-
     // camera movement
     if (keystates[SDL_SCANCODE_A])
         camera->HandleInput(KeyboardInputs::LEFT, dt);
 
-    if (keystates[SDL_SCANCODE_D])
+    else if (keystates[SDL_SCANCODE_D])
         camera->HandleInput(KeyboardInputs::RIGHT, dt);
 
     if (keystates[SDL_SCANCODE_W])
         camera->HandleInput(KeyboardInputs::FORWARD, dt);
 
-    if (keystates[SDL_SCANCODE_S])
+    else if (keystates[SDL_SCANCODE_S])
         camera->HandleInput(KeyboardInputs::BACKWARD, dt);
 
     if (keystates[SDL_SCANCODE_Q])
         camera->HandleInput(KeyboardInputs::DOWN, dt);
 
-    if (keystates[SDL_SCANCODE_E])
+    else if (keystates[SDL_SCANCODE_E])
         camera->HandleInput(KeyboardInputs::UP, dt);
 }
 
