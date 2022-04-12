@@ -496,7 +496,7 @@ void Model::createVertexBuffer(Mesh& mesh, const VkCommandPool& commandPool)
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vb.buffer, vb.bufferMemory);
 
-	copyBuffer(commandPool, stagingBuffer, vb.buffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	copyBuffer(commandPool, stagingBuffer, vb.buffer, static_cast<uint32_t>(bufferSize), VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
 	mesh.vertexBuffer = vb;
 
@@ -526,7 +526,7 @@ void Model::createIndexBuffer(Mesh& mesh, const VkCommandPool& commandPool)
 	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, ib.buffer, ib.bufferMemory);
 
-	copyBuffer(commandPool, stagingBuffer, ib.buffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	copyBuffer(commandPool, stagingBuffer, ib.buffer, static_cast<uint32_t>(bufferSize), VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
 	mesh.indexBuffer = ib;
 

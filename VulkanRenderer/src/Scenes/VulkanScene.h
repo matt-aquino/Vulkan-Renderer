@@ -76,7 +76,6 @@ protected:
 
 	void createImageView(VkImage& image, VkImageView& imageView, VkFormat format, VkImageAspectFlags aspectFlags, VkImageViewType viewType);
 
-
 	// Command Buffers
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> commandBuffersList;
