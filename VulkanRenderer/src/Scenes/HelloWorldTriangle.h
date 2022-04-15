@@ -32,6 +32,9 @@ public:
 	VulkanReturnValues DrawScene(const VulkanSwapChain& swapChain) override;
 	void DestroyScene(bool isRecreation) override;
 
+	void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
+	void HandleMouseInput(const int x, const int y) override;
+
 private:
 	// ** Create all aspects of the graphics pipeline **
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);

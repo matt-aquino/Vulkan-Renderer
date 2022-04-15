@@ -74,7 +74,7 @@ void Particles::RecordScene()
 			0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
 
 		// bind storage buffer as a vertex buffer
-		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &computePipeline.storageBuffer.buffer, offsets);
+		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &computePipeline.storageBuffer->buffer, offsets);
 
 		// draw particles
 		vkCmdDraw(commandBuffersList[i], MAX_NUM_PARTICLES, 1, 0, 0);
@@ -211,6 +211,44 @@ void Particles::DestroyScene(bool isRecreation)
 	computePipeline.destroyComputePipeline(device);
 }
 
+void Particles::HandleKeyboardInput(const uint8_t* keystates, float dt)
+{
+	Camera* camera = Camera::GetCamera();
+
+	// camera movement
+	if (keystates[SDL_SCANCODE_A])
+		camera->HandleInput(KeyboardInputs::LEFT, dt);
+
+	else if (keystates[SDL_SCANCODE_D])
+		camera->HandleInput(KeyboardInputs::RIGHT, dt);
+
+	if (keystates[SDL_SCANCODE_S])
+		camera->HandleInput(KeyboardInputs::FORWARD, dt);
+
+	else if (keystates[SDL_SCANCODE_W])
+		camera->HandleInput(KeyboardInputs::BACKWARD, dt);
+
+	if (keystates[SDL_SCANCODE_Q])
+		camera->HandleInput(KeyboardInputs::DOWN, dt);
+
+	else if (keystates[SDL_SCANCODE_E])
+		camera->HandleInput(KeyboardInputs::UP, dt);
+}
+
+void Particles::HandleMouseInput(const int x, const int y)
+{
+	static float deltaX = 0.0f;
+	static float deltaY = 0.0f;
+
+	// check if current motion is less than/greater than last motion
+	float sensivity = 0.1f;
+
+	deltaX = x * sensivity;
+	deltaY = y * sensivity;
+
+	Camera::GetCamera()->RotateCamera(deltaX, deltaY);
+}
+
 void Particles::CreateCommandBuffers()
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
@@ -280,12 +318,16 @@ void Particles::CreateParticles(bool isRecreation)
 	memcpy(data, particles.data(), (size_t)size);
 	vkUnmapMemory(device, stagingBufferMemory);
 	
+	VulkanBuffer buffer;
+
 	// since we'll be reading this data back, we need to make sure the CPU can see it 
 	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-		computePipeline.storageBuffer.buffer, computePipeline.storageBuffer.bufferMemory);
+		buffer.buffer, buffer.bufferMemory);
 
-	copyBuffer(stagingBuffer, computePipeline.storageBuffer.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	copyBuffer(stagingBuffer, buffer.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+
+	computePipeline.storageBuffer = buffer;
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -329,12 +371,16 @@ void Particles::CreateUniforms(const VulkanSwapChain& swapChain)
 		graphicsPipeline.uniformBuffers[i] = ub;
 	}
 
+	VulkanBuffer buffer;
+
 	// create compute uniform buffer
 	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		computePipeline.uniformBuffer.buffer, computePipeline.uniformBuffer.bufferMemory);
+		buffer.buffer, buffer.bufferMemory);
 
-	copyBuffer(stagingBuffer, computePipeline.uniformBuffer.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	copyBuffer(stagingBuffer, buffer.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+
+	computePipeline.uniformBuffer = buffer;
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -733,7 +779,7 @@ void Particles::CreateSyncObjects(const VulkanSwapChain& swapChain)
 
 	computeFinishedBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 	computeFinishedBarrier.pNext = nullptr;
-	computeFinishedBarrier.buffer = computePipeline.storageBuffer.buffer;
+	computeFinishedBarrier.buffer = computePipeline.storageBuffer->buffer;
 	computeFinishedBarrier.size = sizeof(Particle) * MAX_NUM_PARTICLES;
 	computeFinishedBarrier.offset = 0;
 	computeFinishedBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -743,7 +789,7 @@ void Particles::CreateSyncObjects(const VulkanSwapChain& swapChain)
 
 	vertexFinishedBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
 	vertexFinishedBarrier.pNext = nullptr;
-	vertexFinishedBarrier.buffer = computePipeline.storageBuffer.buffer;
+	vertexFinishedBarrier.buffer = computePipeline.storageBuffer->buffer;
 	vertexFinishedBarrier.size = sizeof(Particle) * MAX_NUM_PARTICLES;
 	vertexFinishedBarrier.offset = 0;
 	vertexFinishedBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -884,7 +930,7 @@ void Particles::CreateComputeDescriptorSets(const VulkanSwapChain& swapChain)
 		throw std::runtime_error("Failed to allocated compute descriptor sets");
 
 	VkDescriptorBufferInfo bufferInfo = {};
-	bufferInfo.buffer = computePipeline.storageBuffer.buffer;
+	bufferInfo.buffer = computePipeline.storageBuffer->buffer;
 	bufferInfo.offset = 0;
 	bufferInfo.range = sizeof(Particle) * MAX_NUM_PARTICLES;
 
@@ -898,7 +944,7 @@ void Particles::CreateComputeDescriptorSets(const VulkanSwapChain& swapChain)
 	descriptorWrite.pBufferInfo = &bufferInfo;
 
 	VkDescriptorBufferInfo uboInfo = {};
-	uboInfo.buffer = computePipeline.uniformBuffer.buffer;
+	uboInfo.buffer = computePipeline.uniformBuffer->buffer;
 	uboInfo.offset = 0;
 	uboInfo.range = sizeof(UBO);
 
@@ -929,7 +975,7 @@ void Particles::ReadBackParticleData()
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		stagingBuffer, stagingBufferMemory);
 
-	copyBuffer(computePipeline.storageBuffer.buffer, stagingBuffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	copyBuffer(computePipeline.storageBuffer->buffer, stagingBuffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
 	void* data;
 	vkMapMemory(device, stagingBufferMemory, 0, size, 0, &data);

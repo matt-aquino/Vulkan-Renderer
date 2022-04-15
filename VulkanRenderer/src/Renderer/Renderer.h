@@ -31,6 +31,7 @@
 #include "Scenes/HelloWorldTriangle.h"
 #include "Scenes/ModeledObject.h"
 #include "Scenes/Particles.h"
+#include "Scenes/Mandelbrot.h"
 #include "Camera.h"
 
 class Renderer
@@ -60,7 +61,7 @@ private:
 	// Rendering
 	static SDL_Window* appWindow;
 	VkSurfaceKHR renderSurface;
-	float deltaX = 0.0f, deltaY = 0.0f, dt = 0.0f;
+	float dt = 0.0f;
 	int lastX = 0, lastY = 0;
 	std::chrono::steady_clock::time_point startTime, currentTime, lastTime;
 	bool isAppRunning = true;

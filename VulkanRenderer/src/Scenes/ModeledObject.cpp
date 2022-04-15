@@ -227,6 +227,44 @@ void ModeledObject::DestroyScene(bool isRecreation)
 	}
 }
 
+void ModeledObject::HandleKeyboardInput(const uint8_t* keystates, float dt)
+{
+	Camera* camera = Camera::GetCamera();
+
+	// camera movement
+	if (keystates[SDL_SCANCODE_A])
+		camera->HandleInput(KeyboardInputs::LEFT, dt);
+
+	else if (keystates[SDL_SCANCODE_D])
+		camera->HandleInput(KeyboardInputs::RIGHT, dt);
+
+	if (keystates[SDL_SCANCODE_S])
+		camera->HandleInput(KeyboardInputs::FORWARD, dt);
+
+	else if (keystates[SDL_SCANCODE_W])
+		camera->HandleInput(KeyboardInputs::BACKWARD, dt);
+
+	if (keystates[SDL_SCANCODE_Q])
+		camera->HandleInput(KeyboardInputs::DOWN, dt);
+
+	else if (keystates[SDL_SCANCODE_E])
+		camera->HandleInput(KeyboardInputs::UP, dt);
+}
+
+void ModeledObject::HandleMouseInput(const int x, const int y)
+{
+	static float deltaX = 0.0f;
+	static float deltaY = 0.0f;
+
+	// check if current motion is less than/greater than last motion
+	float sensivity = 0.1f;
+
+	deltaX = x * sensivity;
+	deltaY = y * sensivity;
+
+	Camera::GetCamera()->RotateCamera(deltaX, deltaY);
+}
+
 void ModeledObject::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();

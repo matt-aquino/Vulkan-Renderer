@@ -1653,6 +1653,7 @@
     <ClInclude Include="vendor\vulkan\vulkan_xlib_xrandr.h">
       <Filter>vendor\vulkan</Filter>
     </ClInclude>
+    <ClInclude Include="src\Scenes\Mandelbrot.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Renderer\Camera.cpp">
@@ -1682,5 +1683,10 @@
     <ClCompile Include="src\main.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\Scenes\Mandelbrot.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\Mandelbrot\pass_thru.vert" />
+    <None Include="shaders\Mandelbrot\mandelbrot.frag" />
   </ItemGroup>
 </Project>

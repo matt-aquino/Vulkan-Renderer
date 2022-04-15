@@ -35,6 +35,9 @@ public:
 
 	void DestroyScene(bool isRecreation) override;
 
+	void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
+	void HandleMouseInput(const int x, const int y) override;
+
 private:
 	Model *object;
 

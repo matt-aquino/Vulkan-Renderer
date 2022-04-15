@@ -17,6 +17,9 @@ public:
 	VulkanReturnValues DrawScene(const VulkanSwapChain& swapChain) override;
 	void DestroyScene(bool isRecreation) override;
 
+	void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
+	void HandleMouseInput(const int x, const int y) override;
+
 private:
 	void CreateCommandBuffers();
 	void CreateParticles(bool isRecreation);

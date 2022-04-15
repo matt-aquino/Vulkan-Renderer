@@ -22,6 +22,7 @@
 #include "Renderer/HelperStructs.h"
 #include "Renderer/Camera.h"
 #include "Renderer/Model.h"
+#include "SDL_scancode.h"
 
 #define SHADERPATH "shaders/"
 
@@ -43,6 +44,10 @@ public:
 	
 	// ** Clean up resources ** 
 	virtual void DestroyScene(bool isRecreation) = 0;
+
+	// handle user inputs
+	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) = 0;
+	virtual void HandleMouseInput(const int x, const int y) = 0;
 
 	std::string sceneName;
 

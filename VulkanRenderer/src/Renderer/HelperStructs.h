@@ -154,7 +154,7 @@ struct VulkanComputePipeline
 	VkPipelineLayout pipelineLayout;
 	VkPipeline pipeline;
 
-	VulkanBuffer storageBuffer, uniformBuffer;
+	std::optional<VulkanBuffer> storageBuffer, uniformBuffer;
 
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSetLayout descriptorSetLayout;
@@ -183,10 +183,18 @@ struct VulkanComputePipeline
 
 	void destroyComputePipeline(const VkDevice& device)
 	{
-		vkDestroyBuffer(device, storageBuffer.buffer, nullptr);
-		vkFreeMemory(device, storageBuffer.bufferMemory, nullptr);
-		vkDestroyBuffer(device, uniformBuffer.buffer, nullptr);
-		vkFreeMemory(device, uniformBuffer.bufferMemory, nullptr);
+		if (storageBuffer.has_value())
+		{
+			vkDestroyBuffer(device, storageBuffer->buffer, nullptr);
+			vkFreeMemory(device, storageBuffer->bufferMemory, nullptr);
+		}
+
+		if (uniformBuffer.has_value())
+		{
+			vkDestroyBuffer(device, uniformBuffer->buffer, nullptr);
+			vkFreeMemory(device, uniformBuffer->bufferMemory, nullptr);
+		}
+
 		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 		vkDestroyPipeline(device, pipeline, nullptr);

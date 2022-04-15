@@ -152,9 +152,7 @@ void VulkanScene::transitionImageLayout(VkImage image, VkFormat format, VkImageL
 	}
 
 	else
-	{
 		throw std::invalid_argument("Unsupported layout transition!");
-	}
 
 	vkCmdPipelineBarrier(commandBuffer, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 	endSingleTimeCommands(commandBuffer, renderQueue);

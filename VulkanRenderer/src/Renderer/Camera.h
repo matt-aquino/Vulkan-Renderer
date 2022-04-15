@@ -32,17 +32,18 @@ public:
 	Camera(Camera& other) = delete;
 	void operator=(const Camera&) = delete;
 
+	void HandleInput(KeyboardInputs input, float dt);
+	void RotateCamera(float xOffset, float yOffset);
+
 	glm::mat4 GetViewMatrix() { return glm::lookAt(position, position + forward, up); }
 	glm::vec3 GetCameraPosition() { return position; }
 	float GetFOV() { return zoom; }
 
 private:
-	friend class Renderer;
 	Camera(glm::vec3 pos);
 	~Camera();
 
-	void HandleInput(KeyboardInputs input, float dt);
-	void RotateCamera(float xOffset, float yOffset);
+	
 	void ChangeZoom(float dt);
 	void ResetCamera();
 

@@ -33,12 +33,14 @@ Renderer::Renderer()
 
     // Create our scenes
    // HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
-    ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
+    //ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
     //Particles* scene3 = new Particles("Particles", vulkanSwapChain);
+    Mandelbrot* scene4 = new Mandelbrot("Mandelbrot 2D", vulkanSwapChain);
 
     //scenesList.push_back(scene1);
-    scenesList.push_back(scene2);
+    //scenesList.push_back(scene2);
     //scenesList.push_back(scene3);
+    scenesList.push_back(scene4);
 }
 
 
@@ -155,8 +157,6 @@ void Renderer::RunApp()
 
                         case SDL_SCANCODE_LEFT:
 
-                            camera->ResetCamera();
-
                             if (sceneIndex == 0)
                                 sceneIndex = static_cast<uint32_t>(scenesList.size()) - 1;
 
@@ -167,7 +167,6 @@ void Renderer::RunApp()
                             break;
 
                         case SDL_SCANCODE_RIGHT:
-                            camera->ResetCamera();
                             sceneIndex = (sceneIndex + 1) % scenesList.size();
                             SDL_SetWindowTitle(appWindow, scenesList[sceneIndex]->sceneName.c_str()); // change window title
                             break;
@@ -188,15 +187,6 @@ void Renderer::RunApp()
                     }
                     break;
 
-                case SDL_MOUSEBUTTONDOWN:
-                    if (event.button.button == SDL_BUTTON_RIGHT)
-                        isCameraMoving = true; 
-                    break;
-
-                case SDL_MOUSEBUTTONUP:
-                    if (event.button.button == SDL_BUTTON_RIGHT)
-                        isCameraMoving = false;
-
 
                 default:
                     // Do nothing.
@@ -213,16 +203,13 @@ void Renderer::RunApp()
 
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
         SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
-
-        if (isCameraMoving)
-        {
-            HandleKeyboardInput(keystates);
-            HandleMouseMotion(currentMouseX, currentMouseY);
-        }
         
         // don't run the scene while the scene is minimized
         if (!windowMinimized)
         {
+            scenesList[sceneIndex]->HandleKeyboardInput(keystates, dt);
+            scenesList[sceneIndex]->HandleMouseInput(currentMouseX, currentMouseY);
+
             returnValues = scenesList[sceneIndex]->DrawScene(vulkanSwapChain);
             
             if (returnValues == VulkanReturnValues::VK_SWAPCHAIN_OUT_OF_DATE)
@@ -470,37 +457,3 @@ bool Renderer::checkValidationLayerSupport()
     return true;
 }
 
-void Renderer::HandleKeyboardInput(const Uint8* keystates)
-{
-    Camera* camera = Camera::GetCamera();
-
-    // camera movement
-    if (keystates[SDL_SCANCODE_A])
-        camera->HandleInput(KeyboardInputs::LEFT, dt);
-
-    else if (keystates[SDL_SCANCODE_D])
-        camera->HandleInput(KeyboardInputs::RIGHT, dt);
-
-    if (keystates[SDL_SCANCODE_W])
-        camera->HandleInput(KeyboardInputs::FORWARD, dt);
-
-    else if (keystates[SDL_SCANCODE_S])
-        camera->HandleInput(KeyboardInputs::BACKWARD, dt);
-
-    if (keystates[SDL_SCANCODE_Q])
-        camera->HandleInput(KeyboardInputs::DOWN, dt);
-
-    else if (keystates[SDL_SCANCODE_E])
-        camera->HandleInput(KeyboardInputs::UP, dt);
-}
-
-void Renderer::HandleMouseMotion(int x, int y)
-{
-    // check if current motion is less than/greater than last motion
-    float sensivity = 0.1f;
-
-    deltaX = x * sensivity;
-    deltaY = y * sensivity;
-
-    Camera::GetCamera()->RotateCamera(deltaX, deltaY);
-}
