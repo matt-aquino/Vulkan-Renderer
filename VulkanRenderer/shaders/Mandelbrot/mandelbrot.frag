@@ -7,7 +7,6 @@
 #version 460
 #define TWO_PI 2.0f * 3.14159265f
 
-layout(location = 0) in vec2 outUV;
 layout(location = 0) out vec4 fragColor;
 
 layout(push_constant) uniform PushConstants
@@ -127,6 +126,7 @@ float calcMandelbrot(vec2 pixel)
 
 void main()
 {
+    // gather number of completed iterations / max iterations
     float t = calcMandelbrot(fragCoord);
     
     // use a cosine palette to determine color:
