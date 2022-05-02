@@ -3,7 +3,6 @@
 
 #include "VulkanScene.h"
 #include "VulkanDevice.h"
-#include "Renderer/HelperStructs.h"
 #include <time.h>
 
 class Particles : public VulkanScene

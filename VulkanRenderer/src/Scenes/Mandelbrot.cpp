@@ -188,11 +188,11 @@ void Mandelbrot::DestroyScene(bool isRecreation)
 void Mandelbrot::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 {
 #pragma region SHADERS
-	auto vertShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Mandelbrot/pass_thru.spv");
-	VkShaderModule vertShaderModule = CreateShaderModules(vertShaderCode);
+	auto vertShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Mandelbrot/pass_thru.spv");
+	VkShaderModule vertShaderModule = HelperFunctions::CreateShaderModules(vertShaderCode);
 
-	auto fragShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Mandelbrot/mandelbrot.spv");
-	VkShaderModule fragShaderModule = CreateShaderModules(fragShaderCode);
+	auto fragShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Mandelbrot/mandelbrot.spv");
+	VkShaderModule fragShaderModule = HelperFunctions::CreateShaderModules(fragShaderCode);
 
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
@@ -461,7 +461,7 @@ void Mandelbrot::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 
 	for (size_t i = 0; i < swapChainSize; i++)
 	{
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		HelperFunctions::createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			graphicsPipeline.uniformBuffers[i].buffer, graphicsPipeline.uniformBuffers[i].bufferMemory);
 	}
 

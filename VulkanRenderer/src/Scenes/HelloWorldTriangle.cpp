@@ -210,7 +210,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 
 	for (size_t i = 0; i < swapChainSize; i++)
 	{
-		createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		HelperFunctions::createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			graphicsPipeline.uniformBuffers[i].buffer, graphicsPipeline.uniformBuffers[i].bufferMemory);
 	}
 
@@ -314,10 +314,10 @@ void HelloWorldTriangle::HandleKeyboardInput(const uint8_t* keystates, float dt)
 		camera->HandleInput(KeyboardInputs::RIGHT, dt);
 
 	if (keystates[SDL_SCANCODE_S])
-		camera->HandleInput(KeyboardInputs::FORWARD, dt);
+		camera->HandleInput(KeyboardInputs::BACKWARD, dt);
 
 	else if (keystates[SDL_SCANCODE_W])
-		camera->HandleInput(KeyboardInputs::BACKWARD, dt);
+		camera->HandleInput(KeyboardInputs::FORWARD, dt);
 
 	if (keystates[SDL_SCANCODE_Q])
 		camera->HandleInput(KeyboardInputs::DOWN, dt);
@@ -344,11 +344,11 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 #pragma region SHADERS
-	auto vertShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Triangle/basic_triangle_vertex.spv");
-	VkShaderModule vertShaderModule = CreateShaderModules(vertShaderCode);
+	auto vertShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Triangle/basic_triangle_vertex.spv");
+	VkShaderModule vertShaderModule = HelperFunctions::CreateShaderModules(vertShaderCode);
 
-	auto fragShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Triangle/basic_triangle_fragment.spv");
-	VkShaderModule fragShaderModule = CreateShaderModules(fragShaderCode);
+	auto fragShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Triangle/basic_triangle_fragment.spv");
+	VkShaderModule fragShaderModule = HelperFunctions::CreateShaderModules(fragShaderCode);
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
 	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -640,7 +640,7 @@ void HelloWorldTriangle::CreateVertexBuffer()
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
 
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+	HelperFunctions::createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
@@ -650,10 +650,10 @@ void HelloWorldTriangle::CreateVertexBuffer()
 
 	VulkanBuffer vertexBuffer;
 
-	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ,
+	HelperFunctions::createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer.buffer, vertexBuffer.bufferMemory);
 
-	copyBuffer(stagingBuffer, vertexBuffer.buffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	HelperFunctions::copyBuffer(commandPool, stagingBuffer, vertexBuffer.buffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
 	graphicsPipeline.vertexBuffer = vertexBuffer;
 

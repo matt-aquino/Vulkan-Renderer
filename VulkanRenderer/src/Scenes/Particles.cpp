@@ -223,10 +223,10 @@ void Particles::HandleKeyboardInput(const uint8_t* keystates, float dt)
 		camera->HandleInput(KeyboardInputs::RIGHT, dt);
 
 	if (keystates[SDL_SCANCODE_S])
-		camera->HandleInput(KeyboardInputs::FORWARD, dt);
+		camera->HandleInput(KeyboardInputs::BACKWARD, dt);
 
 	else if (keystates[SDL_SCANCODE_W])
-		camera->HandleInput(KeyboardInputs::BACKWARD, dt);
+		camera->HandleInput(KeyboardInputs::FORWARD, dt);
 
 	if (keystates[SDL_SCANCODE_Q])
 		camera->HandleInput(KeyboardInputs::DOWN, dt);
@@ -308,7 +308,7 @@ void Particles::CreateParticles(bool isRecreation)
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
 
-	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+	HelperFunctions::createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
 		stagingBuffer, stagingBufferMemory);
 
@@ -321,11 +321,11 @@ void Particles::CreateParticles(bool isRecreation)
 	VulkanBuffer buffer;
 
 	// since we'll be reading this data back, we need to make sure the CPU can see it 
-	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, 
+	HelperFunctions::createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
 		buffer.buffer, buffer.bufferMemory);
 
-	copyBuffer(stagingBuffer, buffer.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	HelperFunctions::copyBuffer(commandPool, stagingBuffer, buffer.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
 	computePipeline.storageBuffer = buffer;
 
@@ -347,7 +347,7 @@ void Particles::CreateUniforms(const VulkanSwapChain& swapChain)
 	VkDeviceMemory stagingBufferMemory;
 	VkDeviceSize size = sizeof(UBO);
 
-	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+	HelperFunctions::createBuffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		stagingBuffer, stagingBufferMemory);
 
 	void* data;
@@ -363,22 +363,22 @@ void Particles::CreateUniforms(const VulkanSwapChain& swapChain)
 	{
 		VulkanBuffer ub;
 
-		createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+		HelperFunctions::createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			ub.buffer, ub.bufferMemory);
 
-		copyBuffer(stagingBuffer, ub.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+		HelperFunctions::copyBuffer(commandPool, stagingBuffer, ub.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 		graphicsPipeline.uniformBuffers[i] = ub;
 	}
 
 	VulkanBuffer buffer;
 
 	// create compute uniform buffer
-	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+	HelperFunctions::createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		buffer.buffer, buffer.bufferMemory);
 
-	copyBuffer(stagingBuffer, buffer.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	HelperFunctions::copyBuffer(commandPool, stagingBuffer, buffer.buffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
 	computePipeline.uniformBuffer = buffer;
 
@@ -491,10 +491,10 @@ void Particles::CreateFramebuffers(const VulkanSwapChain& swapChain)
 	graphicsPipeline.framebuffers.resize(swapChain.swapChainImageViews.size());
 	VkExtent2D dim = swapChain.swapChainDimensions;
 
-	createImage(dim.width, dim.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+	HelperFunctions::createImage(dim.width, dim.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, graphicsPipeline.depthStencilBuffer, graphicsPipeline.depthStencilBufferMemory);
 
-	createImageView(graphicsPipeline.depthStencilBuffer, graphicsPipeline.depthStencilBufferView, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_VIEW_TYPE_2D);
+	HelperFunctions::createImageView(graphicsPipeline.depthStencilBuffer, graphicsPipeline.depthStencilBufferView, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_VIEW_TYPE_2D);
 
 	for (size_t i = 0; i < swapChain.swapChainImageViews.size(); i++)
 	{
@@ -517,11 +517,11 @@ void Particles::CreateFramebuffers(const VulkanSwapChain& swapChain)
 void Particles::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 {
 #pragma region SHADERS
-	auto vertShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Particles/particles_vertex_shader.spv");
-	VkShaderModule vertShaderModule = CreateShaderModules(vertShaderCode);
+	auto vertShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Particles/particles_vertex_shader.spv");
+	VkShaderModule vertShaderModule = HelperFunctions::CreateShaderModules(vertShaderCode);
 	
-	auto fragShaderCode = graphicsPipeline.readShaderFile(SHADERPATH"Particles/particles_fragment_shader.spv");
-	VkShaderModule fragShaderModule = CreateShaderModules(fragShaderCode);
+	auto fragShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Particles/particles_fragment_shader.spv");
+	VkShaderModule fragShaderModule = HelperFunctions::CreateShaderModules(fragShaderCode);
 
 
 	VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
@@ -698,8 +698,8 @@ void Particles::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 
 void Particles::CreateComputePipeline()
 {
-	auto compShaderCode = computePipeline.readShaderFile(SHADERPATH"Particles/particles_compute_shader.spv");
-	VkShaderModule compShaderModule = CreateShaderModules(compShaderCode);
+	auto compShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Particles/particles_compute_shader.spv");
+	VkShaderModule compShaderModule = HelperFunctions::CreateShaderModules(compShaderCode);
 
 	// Specialization Constants
 	int data[] = { MAX_NUM_PARTICLES };
@@ -971,11 +971,11 @@ void Particles::ReadBackParticleData()
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
 
-	createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+	HelperFunctions::createBuffer(size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		stagingBuffer, stagingBufferMemory);
 
-	copyBuffer(computePipeline.storageBuffer->buffer, stagingBuffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
+	HelperFunctions::copyBuffer(commandPool, computePipeline.storageBuffer->buffer, stagingBuffer, size, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
 	void* data;
 	vkMapMemory(device, stagingBufferMemory, 0, size, 0, &data);

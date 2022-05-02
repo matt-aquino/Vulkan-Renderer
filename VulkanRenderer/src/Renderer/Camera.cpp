@@ -7,9 +7,10 @@ Camera::Camera(glm::vec3 pos)
 	position = pos;
 	startPosition = position;
 	pitch = 0.0f;
-	yaw = 90.0f;
+	//yaw = 90.0f;
+	yaw = 0.0f;
 	zoom = 45.0f;
-	forward = glm::vec3(0.0f, 0.0f, 1.0f);
+	forward = glm::vec3(0.0f, 0.0f, -1.0f);
 	up = WorldUp;
 	right = glm::vec3(1.0f, 0.0f, 0.0f);
 }
@@ -58,6 +59,11 @@ void Camera::HandleInput(KeyboardInputs input, float dt)
 	position += deltaPos;
 }
 
+
+glm::mat4 Camera::GetViewMatrix()
+{
+	return glm::lookAt(position, position + forward, up);
+}
 void Camera::RotateCamera(float xOffset, float yOffset)
 {
 	pitch += -yOffset;
@@ -65,7 +71,11 @@ void Camera::RotateCamera(float xOffset, float yOffset)
 
 	yaw += xOffset;
 
-	// update rotation
+	UpdateViewMatrix();
+}
+
+void Camera::UpdateViewMatrix()
+{
 	forward.x = cos(glm::radians(yaw) * cos(glm::radians(pitch)));
 	forward.y = sin(glm::radians(pitch));
 	forward.z = sin(glm::radians(yaw) * cos(glm::radians(pitch)));

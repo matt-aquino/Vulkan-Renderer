@@ -24,7 +24,10 @@ public:
 	static Camera* GetCamera()
 	{
 		if (camera == nullptr)
-			camera = new Camera(glm::vec3(0.0f, 0.0f, -5.0f));
+		{
+			camera = new Camera(glm::vec3(1.0f, 1.0f, 3.0f));
+			camera->UpdateViewMatrix();
+		}
 
 		return camera;
 	}
@@ -34,8 +37,9 @@ public:
 
 	void HandleInput(KeyboardInputs input, float dt);
 	void RotateCamera(float xOffset, float yOffset);
+	void UpdateViewMatrix();
 
-	glm::mat4 GetViewMatrix() { return glm::lookAt(position, position + forward, up); }
+	glm::mat4 GetViewMatrix();
 	glm::vec3 GetCameraPosition() { return position; }
 	float GetFOV() { return zoom; }
 

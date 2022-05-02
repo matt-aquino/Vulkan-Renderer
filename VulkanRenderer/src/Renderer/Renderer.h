@@ -22,17 +22,11 @@
 #include "SDL2/SDL_vulkan.h"
 #include "glm/glm.hpp"
 #include "vulkan/vulkan.h"
-
+#include <chrono>
 #include <algorithm>
 
-#include "VulkanDevice.h"
-
-// scene includes
-#include "Scenes/HelloWorldTriangle.h"
-#include "Scenes/ModeledObject.h"
-#include "Scenes/Particles.h"
-#include "Scenes/Mandelbrot.h"
-#include "Camera.h"
+//#include "VulkanDevice.h"
+#include "Scenes/VulkanScene.h"
 
 class Renderer
 {
@@ -71,12 +65,19 @@ private:
 
 	// extensions
 	unsigned extensionCount;
-	std::vector<const char*> extensionsList;
+	std::vector<const char*> extensionsList = { "VK_EXT_extended_dynamic_state" };
 
 	// Vulkan Info
 	static VkInstance instance;
 	VkResult result;
+
+#define VKDUMP 0 // "VK_LAYER_LUNARG_api_dump" will print the result of every vk... function, to get more thorough results
+
+#if VKDUMP == 1
+	std::vector<const char*> validationLayersList = { "VK_LAYER_LUNARG_api_dump", "VK_LAYER_KHRONOS_validation", };
+#else
 	std::vector<const char*> validationLayersList = { "VK_LAYER_KHRONOS_validation", };
+#endif
 
 	// Scenes
 	std::vector<VulkanScene*> scenesList;
@@ -98,8 +99,6 @@ protected:
 	void CreateSwapChain();
 	void CreateImages();
 	void RecreateSwapChain();
-	void HandleKeyboardInput(const Uint8* keystates);
-	void HandleMouseMotion(int x, int y);
 };
 
 

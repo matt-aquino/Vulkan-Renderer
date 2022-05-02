@@ -19,13 +19,12 @@
 
 #include <vulkan/vulkan.h>
 #include "VulkanDevice.h"
-#include "Renderer/HelperStructs.h"
 #include "Renderer/Camera.h"
-#include "Renderer/Model.h"
+#include "Renderer/Loaders.h"
+#include "Renderer/BasicShapes.h"
 #include "SDL_scancode.h"
 
 #define SHADERPATH "shaders/"
-
 
 class VulkanScene
 {
@@ -55,31 +54,6 @@ protected:
 
 	// ** Allocate memory to a command pool for command buffers **
 	void CreateCommandPool();
-
-	// ** Read shader files and create the shader modules used in a pipeline **
-	VkShaderModule CreateShaderModules(const std::vector<char>& code);
-
-	// ** Allocate a buffer of memory based on specifications **
-	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);
-	
-	// ** Copy an existing buffer into another **
-	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkQueue queue);
-
-	// ** Copy buffer data into an image **
-	void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t depth);
-
-	// ** Transition images layouts **
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
-
-	// ** submit single time commands on command buffers **
-	VkCommandBuffer beginSingleTimeCommands();
-
-	// ** end single time commands **
-	void endSingleTimeCommands(VkCommandBuffer cmdBuffer, VkQueue queue);
-
-	void createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& memory);
-
-	void createImageView(VkImage& image, VkImageView& imageView, VkFormat format, VkImageAspectFlags aspectFlags, VkImageViewType viewType);
 
 	// Command Buffers
 	VkCommandPool commandPool;

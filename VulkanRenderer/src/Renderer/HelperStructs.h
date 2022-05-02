@@ -31,7 +31,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/hash.hpp"
 
-#include "VulkanDevice.h"
+#include "HelperFunctions.h"
 
 struct VulkanSwapChain
 {
@@ -84,69 +84,8 @@ struct VulkanGraphicsPipeline
 
 	VkResult result;
 
-	std::vector<char> readShaderFile(const std::string& file)
-	{
-		std::ifstream fileStream(file, std::ios::ate | std::ios::binary);
-
-		if (!fileStream.is_open())
-		{
-			throw std::runtime_error("Failed to open shader file!");
-		}
-
-		shaderFileSize = (size_t)fileStream.tellg();
-		std::vector<char> buffer(shaderFileSize);
-
-		fileStream.seekg(0);
-		fileStream.read(buffer.data(), shaderFileSize);
-
-		fileStream.close();
-		return buffer;
-	}
-
-	void destroyGraphicsPipeline(const VkDevice& device)
-	{
-		for (VkFramebuffer fb : framebuffers)
-		{
-			vkDestroyFramebuffer(device, fb, nullptr);
-		}
-
-		size_t uniformBufferSize = uniformBuffers.size();
-		for (size_t i = 0; i < uniformBufferSize; i++)
-		{
-			vkDestroyBuffer(device, uniformBuffers[i].buffer, nullptr);
-			vkFreeMemory(device, uniformBuffers[i].bufferMemory, nullptr);
-		}
-
-		// check is buffers are filled before attempting to delete them
-		if (vertexBuffer.has_value())
-		{
-			vkDestroyBuffer(device, vertexBuffer->buffer, nullptr);
-			vkFreeMemory(device, vertexBuffer->bufferMemory, nullptr);
-		}
-
-		if (indexBuffer.has_value())
-		{
-			vkDestroyBuffer(device, indexBuffer->buffer, nullptr);
-			vkFreeMemory(device, indexBuffer->bufferMemory, nullptr);
-		}
-
-		if (!isDepthBufferEmpty)
-		{
-			vkDestroyImageView(device, depthStencilBufferView, nullptr);
-			vkDestroyImage(device, depthStencilBuffer, nullptr);
-			vkFreeMemory(device, depthStencilBufferMemory, nullptr);
-		}
-		
-		if (!isDescriptorPoolEmpty)
-		{
-			vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-			vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-		}
-
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-		vkDestroyRenderPass(device, renderPass, nullptr);
-	}
+	void destroyGraphicsPipeline(const VkDevice& device);
+	
 };
 
 struct VulkanComputePipeline
@@ -160,46 +99,10 @@ struct VulkanComputePipeline
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorSet descriptorSet;
 
-	size_t shaderFileSize;
 	VkResult result;
-	std::vector<char> readShaderFile(const std::string& file)
-	{
-		std::ifstream fileStream(file, std::ios::ate | std::ios::binary);
 
-		if (!fileStream.is_open())
-		{
-			throw std::runtime_error("Failed to open shader file!");
-		}
-
-		shaderFileSize = (size_t)fileStream.tellg();
-		std::vector<char> buffer(shaderFileSize);
-
-		fileStream.seekg(0);
-		fileStream.read(buffer.data(), shaderFileSize);
-
-		fileStream.close();
-		return buffer;
-	}
-
-	void destroyComputePipeline(const VkDevice& device)
-	{
-		if (storageBuffer.has_value())
-		{
-			vkDestroyBuffer(device, storageBuffer->buffer, nullptr);
-			vkFreeMemory(device, storageBuffer->bufferMemory, nullptr);
-		}
-
-		if (uniformBuffer.has_value())
-		{
-			vkDestroyBuffer(device, uniformBuffer->buffer, nullptr);
-			vkFreeMemory(device, uniformBuffer->bufferMemory, nullptr);
-		}
-
-		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-		vkDestroyPipeline(device, pipeline, nullptr);
-		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-	}
+	void destroyComputePipeline(const VkDevice& device);
+	
 };
 
 enum class VulkanReturnValues
@@ -209,80 +112,27 @@ enum class VulkanReturnValues
 	VK_FUNCTION_FAILED,
 };
 
+// simple vertex structure for position and color
 struct Vertex
 {
 	glm::vec3 position; // for 2D objects, simply ignore the z value
 	glm::vec3 color;
 
-	static VkVertexInputBindingDescription getBindingDescription()
-	{
-		VkVertexInputBindingDescription bindDesc = {};
-		bindDesc.binding = 0;
-		bindDesc.stride = sizeof(Vertex);
-		bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		return bindDesc;
-	}
-
-	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
-	{
-		std::array<VkVertexInputAttributeDescription, 2> attrDesc{};
-		attrDesc[0].binding = 0;
-		attrDesc[0].location = 0; // match the location within the shader
-		attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT; // match format within shader (float, vec2, vec3, vec4,)
-		attrDesc[0].offset = offsetof(Vertex, position);
-
-		attrDesc[1].binding = 0;
-		attrDesc[1].location = 1;
-		attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrDesc[1].offset = offsetof(Vertex, color);
-
-		return attrDesc;
-	}
+	static VkVertexInputBindingDescription getBindingDescription();
+	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();
 };
 
+// vertex structure for models, contains positions, texcoords, and normals
 struct ModelVertex
 {
 	alignas(16)glm::vec3 position; 
 	alignas(8)glm::vec2 texcoord;
 	alignas(16)glm::vec3 normal;
 
-	static VkVertexInputBindingDescription getBindingDescription()
-	{
-		VkVertexInputBindingDescription bindDesc = {};
-		bindDesc.binding = 0;
-		bindDesc.stride = sizeof(ModelVertex);
-		bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+	static VkVertexInputBindingDescription getBindingDescription();
+	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();
 
-		return bindDesc;
-	}
-
-	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions()
-	{
-		std::array<VkVertexInputAttributeDescription, 3> attrDesc{};
-		attrDesc[0].binding = 0;
-		attrDesc[0].location = 0; // match the location within the shader
-		attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT; // match format within shader (float, vec2, vec3, vec4,)
-		attrDesc[0].offset = offsetof(ModelVertex, position);
-
-		attrDesc[1].binding = 0;
-		attrDesc[1].location = 1;
-		attrDesc[1].format = VK_FORMAT_R32G32_SFLOAT;
-		attrDesc[1].offset = offsetof(ModelVertex, texcoord);
-		
-		attrDesc[2].binding = 0;
-		attrDesc[2].location = 2;
-		attrDesc[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrDesc[2].offset = offsetof(ModelVertex, normal);
-
-		return attrDesc;
-	}
-
-	bool operator==(const ModelVertex& other) const
-	{
-		return position == other.position &&
-			normal == other.normal && texcoord == other.texcoord;
-	}
+	bool operator==(const ModelVertex& other) const;
 };
 
 struct Particle
@@ -292,142 +142,89 @@ struct Particle
 	alignas(16)glm::vec3 color;
 };
 
-namespace std
+enum class TextureType
 {
-	template<> struct hash<ModelVertex>
-	{
-		size_t operator()(ModelVertex const& vertex) const {
-			return ((hash<glm::vec3>()(vertex.position) ^
-				(hash<glm::vec3>()(vertex.normal) << 1)) >> 1) ^
-				(hash<glm::vec2>()(vertex.texcoord) << 1);
-		}
-	};
-}
+	NONE = -1,
+	AMBIENT = 1,
+	DIFFUSE,
+	SPECULAR,
+	SPECULAR_HIGHLIGHT,
+	NORMAL,
+	ALPHA,
+	METALLIC,
+	DISPLACEMENT,
+	EMISSIVE,
+	REFLECTION,
+	ROUGHNESS,
+	SHEEN,
+};
 
 struct Texture
 {
-	std::string name;
-	VkImage image;
-	VkDeviceMemory imageMemory;
-	VkImageView imageView;
-	VkSampler sampler;
+	VkImage image = VK_NULL_HANDLE;
+	VkDeviceMemory imageMemory = VK_NULL_HANDLE;
+	VkImageView imageView = VK_NULL_HANDLE;
+	VkSampler sampler = VK_NULL_HANDLE;
+	VkDescriptorImageInfo textureDescriptor = {};
+	uint32_t width = 0, height = 0;
+	uint32_t mipLevels = 0;
+	uint32_t layerCount = 0;	
+	TextureType type;
+
+	Texture();
+	Texture(TextureType textureType);
+
+	bool operator==(const Texture* texture);
+	bool operator!=(const Texture* texture);
+
+	void copyImageData(const Texture* texture);
+	void destroyTexture();
 };
 
-struct Material
+// extended to include PBR values
+struct Material 
 {
-	alignas(16)glm::vec3 ambient{};
-	alignas(16)glm::vec3 diffuse{};
-	alignas(16)glm::vec3 specular{};
-	alignas(4)float specularExponent = 0.0f;
+	Material();
+	std::string name;
 
-	std::optional<Texture> diffuseTex;
-	std::optional<Texture> normalTex;
-	std::optional<Texture> alphaTex;
-	std::optional<Texture> metallicTex;
-	std::optional<Texture> displacementTex;
-	std::optional<Texture> emissiveTex;
-	std::optional<glm::vec3> emission;
-
-	void destroyTextures()
+	struct
 	{
-		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+		alignas(16)glm::vec3 ambient = glm::vec3(0.0f);
+		alignas(16)glm::vec3 diffuse = glm::vec3(0.0f);
+		alignas(16)glm::vec3 specular = glm::vec3(0.0f);
+		alignas(16)glm::vec3 transmittance = glm::vec3(0.0f);
+		alignas(16)glm::vec3 emission = glm::vec3(0.0f);
 
-		// destroy each texture if it holds a value
-		{
-			if (diffuseTex.has_value())
-			{
-				vkDestroyImage(device, diffuseTex->image, nullptr);
-				vkDestroyImageView(device, diffuseTex->imageView, nullptr);
-				vkDestroySampler(device, diffuseTex->sampler, nullptr);
-				vkFreeMemory(device, diffuseTex->imageMemory, nullptr);
-			}
+		float shininess = 0.0f;			   // specular exponent
+		float ior = 0.0f;				   // index of refraction
+		float dissolve = 0.0f;			   // 1 == opaque; 0 == fully transparent 
+		int illum = 0;					   // illumination model
+		float roughness = 0.0f;            // [0, 1] default 0
+		float metallic = 0.0f;             // [0, 1] default 0
+		float sheen = 0.0f;                // [0, 1] default 0
+		float clearcoat_thickness = 0.0f;  // [0, 1] default 0
+		float clearcoat_roughness = 0.0f;  // [0, 1] default 0
+		float anisotropy = 0.0f;           // aniso. [0, 1] default 0
+		float anisotropy_rotation = 0.0f;  // anisor. [0, 1] default 0
+		float pad0 = 0.0f;
+		int dummy;						   // Suppress padding warning.
+	} ubo;
 
-			if (normalTex.has_value())
-			{
-				vkDestroyImage(device, normalTex->image, nullptr);
-				vkDestroyImageView(device, normalTex->imageView, nullptr);
-				vkDestroySampler(device, normalTex->sampler, nullptr);
-				vkFreeMemory(device, normalTex->imageMemory, nullptr);
-			}
+	// textures						 // MTL values (see tiny_obj_loader.h)
+	Texture* ambientTex = nullptr;				 // map_Ka
+	Texture* diffuseTex = nullptr;				 // map_Kd
+	Texture* specularTex = nullptr;			 // map_Ks
+	Texture* specularHighlightTex = nullptr;    // map_Ns
+	Texture* normalTex = nullptr;				 // norm
+	Texture* alphaTex = nullptr;				 // map_d
+	Texture* metallicTex = nullptr;			 // map_Pm
+	Texture* displacementTex = nullptr;		 // disp
+	Texture* emissiveTex = nullptr;			 // map_Ke
+	Texture* reflectionTex = nullptr;			 // refl
+	Texture* roughnessTex = nullptr;			 // map_Pr
+	Texture* sheenTex = nullptr;				 // map_Ps
 
-			if (alphaTex.has_value())
-			{
-				vkDestroyImage(device, alphaTex->image, nullptr);
-				vkDestroyImageView(device, alphaTex->imageView, nullptr);
-				vkDestroySampler(device, alphaTex->sampler, nullptr);
-				vkFreeMemory(device, alphaTex->imageMemory, nullptr);
-			}
-
-			if (metallicTex.has_value())
-			{
-				vkDestroyImage(device, metallicTex->image, nullptr);
-				vkDestroyImageView(device, metallicTex->imageView, nullptr);
-				vkDestroySampler(device, metallicTex->sampler, nullptr);
-				vkFreeMemory(device, metallicTex->imageMemory, nullptr);
-			}
-
-			if (displacementTex.has_value())
-			{
-				vkDestroyImage(device, displacementTex->image, nullptr);
-				vkDestroyImageView(device, displacementTex->imageView, nullptr);
-				vkDestroySampler(device, displacementTex->sampler, nullptr);
-				vkFreeMemory(device, displacementTex->imageMemory, nullptr);
-			}
-
-			if (emissiveTex.has_value())
-			{
-				vkDestroyImage(device, emissiveTex->image, nullptr);
-				vkDestroyImageView(device, emissiveTex->imageView, nullptr);
-				vkDestroySampler(device, emissiveTex->sampler, nullptr);
-				vkFreeMemory(device, emissiveTex->imageMemory, nullptr);
-			}
-		}
-		
-	}
-
-	void createTextureImageView(Texture& texture, VkFormat format)
-	{
-		static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
-		VkImageViewCreateInfo viewInfo{};
-		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		viewInfo.image = texture.image;
-		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		viewInfo.format = format;
-		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		viewInfo.subresourceRange.baseMipLevel = 0;
-		viewInfo.subresourceRange.levelCount = 1;
-		viewInfo.subresourceRange.baseArrayLayer = 0;
-		viewInfo.subresourceRange.layerCount = 1;
-
-		if (vkCreateImageView(device, &viewInfo, nullptr, &texture.imageView) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create image view");
-	}
-
-	void createTextureSampler(Texture& texture)
-	{
-		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
-		VkSamplerCreateInfo samplerInfo{};
-		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerInfo.magFilter = VK_FILTER_LINEAR;
-		samplerInfo.minFilter = VK_FILTER_LINEAR;
-		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.anisotropyEnable = VK_TRUE;
-		samplerInfo.maxAnisotropy = 4.0f;
-		samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		samplerInfo.unnormalizedCoordinates = VK_FALSE;
-		samplerInfo.compareEnable = VK_FALSE;
-		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		samplerInfo.minLod = 0.0f;
-		samplerInfo.maxLod = 0.0f;
-
-		if (vkCreateSampler(device, &samplerInfo, nullptr, &texture.sampler) != VK_SUCCESS)
-			throw std::runtime_error("Failed to create texture sampler");
-	}
+	void destroy();
 };
 
 struct Mesh
@@ -435,16 +232,77 @@ struct Mesh
 	std::vector<ModelVertex> vertices;
 	std::vector<uint32_t> indices;
 	VulkanBuffer vertexBuffer, indexBuffer;
-	int material_ID;
+	Material* material;
 
-	void destroyBuffers()
-	{
-		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-		vkDestroyBuffer(device, vertexBuffer.buffer, nullptr);
-		vkDestroyBuffer(device, indexBuffer.buffer, nullptr);
-		vkFreeMemory(device, vertexBuffer.bufferMemory, nullptr);
-		vkFreeMemory(device, indexBuffer.bufferMemory, nullptr);
-	}
+	VulkanBuffer uniformBuffer;
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorSet descriptorSet;
+	VkDescriptorPool descriptorPool;
+
+	void createDescriptorSet(Texture* emptyTexture);
+
+	void destroyMesh();
 };
+
+struct Model
+{
+	Model(std::vector<Mesh*> modelMeshes, std::vector<Material*> modelMats) 
+		: meshes(modelMeshes), materials(modelMats) {}
+	std::vector<Mesh*> meshes;
+	std::vector<Material*> materials;
+	void destroyModel();
+	void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useDescriptors = false);
+};
+
+// hash functions
+namespace std
+{
+	template <class T>
+	inline void hash_combine(size_t& s, const T& v)
+	{
+		hash<T> h;
+		s ^= h(v) + 0x9e3779b9 + (s << 6) + (s >> 2);
+	}
+
+	template<> struct hash<ModelVertex>
+	{
+		size_t operator()(ModelVertex const& vertex) const
+		{
+			size_t res = 0;
+			hash_combine(res, vertex.position);
+			hash_combine(res, vertex.texcoord);
+			hash_combine(res, vertex.normal);
+			return res;
+		}
+	};
+
+	template<> struct hash<Texture>
+	{
+		size_t operator()(Texture const& tex) const
+		{
+			size_t res = 0;
+			hash_combine(res, tex.image);
+			hash_combine(res, tex.imageView);
+			hash_combine(res, tex.imageMemory);
+			hash_combine(res, tex.sampler);
+			return res;
+		}
+	};
+
+	template<> struct hash<Material>
+	{
+		size_t operator()(Material const& mat) const
+		{
+			size_t res = 0;
+			hash_combine(res, mat.name);
+			hash_combine(res, mat.ubo.ambient);
+			hash_combine(res, mat.ubo.diffuse);
+			hash_combine(res, mat.ubo.specular);
+			hash_combine(res, mat.ubo.transmittance);
+			hash_combine(res, mat.ubo.emission);
+			return res;
+		}
+	};
+}
 
 #endif //!HELPERSTRUCTS_H
