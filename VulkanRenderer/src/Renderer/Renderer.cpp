@@ -15,7 +15,8 @@
 */
 
 #include "Renderer.h"
-#include "Camera.h"
+
+#include "Scenes/ShadowMap.h"
 
 SDL_Window* Renderer::appWindow = nullptr;
 VkInstance Renderer::instance = VK_NULL_HANDLE;
@@ -30,17 +31,8 @@ Renderer::Renderer()
     CreateSwapChain();
     CreateImages();
 
-
-    // Create our scenes
-   // HelloWorldTriangle *scene1 = new HelloWorldTriangle("Hello World Triangle", vulkanSwapChain);
-    //ModeledObject* scene2 = new ModeledObject("Zelda Chest", vulkanSwapChain);
-    //Particles* scene3 = new Particles("Particles", vulkanSwapChain);
-    Mandelbrot* scene4 = new Mandelbrot("Mandelbrot 2D", vulkanSwapChain);
-
-    //scenesList.push_back(scene1);
-    //scenesList.push_back(scene2);
-    //scenesList.push_back(scene3);
-    scenesList.push_back(scene4);
+    ShadowMap* scene = new ShadowMap("Shadow Mapping", vulkanSwapChain);
+    scenesList.push_back(scene);
 }
 
 
@@ -62,7 +54,7 @@ void Renderer::CreateAppWindow()
         throw std::runtime_error("Could not create SDL window.");
 
     SDL_SetWindowResizable(appWindow, SDL_TRUE);
-    SDL_SetRelativeMouseMode(SDL_FALSE);
+    SDL_SetRelativeMouseMode(SDL_TRUE);
 
     // Get WSI extensions from SDL (we can add more if we like - we just can't remove these)
     if (!SDL_Vulkan_GetInstanceExtensions(appWindow, &extensionCount, NULL))
@@ -210,7 +202,7 @@ void Renderer::RunApp()
             scenesList[sceneIndex]->HandleKeyboardInput(keystates, dt);
             scenesList[sceneIndex]->HandleMouseInput(currentMouseX, currentMouseY);
 
-            returnValues = scenesList[sceneIndex]->DrawScene(vulkanSwapChain);
+            returnValues = scenesList[sceneIndex]->PresentScene(vulkanSwapChain);
             
             if (returnValues == VulkanReturnValues::VK_SWAPCHAIN_OUT_OF_DATE)
                 RecreateSwapChain();
