@@ -25,7 +25,7 @@ public:
 	{
 		if (camera == nullptr)
 		{
-			camera = new Camera(glm::vec3(1.0f, 1.0f, 3.0f));
+			camera = new Camera(glm::vec3(0.0f, 2.0f, 5.0f));
 			camera->UpdateViewMatrix();
 		}
 

@@ -4,15 +4,22 @@
 
 namespace BasicShapes
 {
-	void drawBox(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useDescriptors = false);
-	void drawSphere(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useDescriptors = false);
-	void drawTorus(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useDescriptors = false);
-	void drawPlane(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useDescriptors = false);
+	void drawBox(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false);
+	void drawSphere(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false);
+	void drawTorus(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false);
+	void drawPlane(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false);
+	void drawCone(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false);
+	void drawMonkey(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false);
+	void drawCylinder(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false);
+
 	void loadShapes(VkCommandPool& commandPool);
 	void destroyShapes();
 
 	Mesh* getBox();
+	Mesh* getPlane();
 	Mesh* getSphere();
 	Mesh* getTorus();
-	Mesh* getPlane();
+	Mesh* getCone();
+	Mesh* getMonkey();
+	Mesh* getCylinder();
 }

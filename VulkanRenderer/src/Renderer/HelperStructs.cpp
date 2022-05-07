@@ -9,8 +9,7 @@ void VulkanGraphicsPipeline::destroyGraphicsPipeline(const VkDevice& device)
 		vkDestroyFramebuffer(device, fb, nullptr);
 	}
 
-	size_t uniformBufferSize = uniformBuffers.size();
-	for (size_t i = 0; i < uniformBufferSize; i++)
+	for (size_t i = 0; i < uniformBuffers.size(); i++)
 	{
 		vkDestroyBuffer(device, uniformBuffers[i].buffer, nullptr);
 		vkFreeMemory(device, uniformBuffers[i].bufferMemory, nullptr);
@@ -216,7 +215,10 @@ Material::Material()
 	roughnessTex = new Texture(TextureType::ROUGHNESS);
 	sheenTex = new Texture(TextureType::SHEEN);
 
+	ubo.ambient = glm::vec3(0.15f);
+	ubo.diffuse = glm::vec3(1.0f);
 }
+
 void Material::destroy()
 {
 	delete ambientTex;
@@ -232,33 +234,38 @@ void Material::destroy()
 	delete roughnessTex;
 	delete sheenTex;
 
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	vkDestroyBuffer(device, uniformBuffer.buffer, nullptr);
+	vkFreeMemory(device, uniformBuffer.bufferMemory, nullptr);
+	vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 }
 
-void Mesh::createDescriptorSet(Texture* emptyTexture)
+void Material::createDescriptorSet(Texture* emptyTexture)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
 	std::vector<Texture*> textures = {
-		material->ambientTex,
-		material->diffuseTex,
-		material->specularTex,
-		material->specularHighlightTex,
-		material->normalTex,
-		material->alphaTex,
-		material->metallicTex,
-		material->displacementTex,
-		material->emissiveTex,
-		material->reflectionTex,
-		material->roughnessTex,
-		material->sheenTex
+		ambientTex,
+		diffuseTex,
+		specularTex,
+		specularHighlightTex,
+		normalTex,
+		alphaTex,
+		metallicTex,
+		displacementTex,
+		emissiveTex,
+		reflectionTex,
+		roughnessTex,
+		sheenTex
 	};
 	size_t numTextures = textures.size();
 
-	VkDescriptorPoolSize poolSizes[2];
+	VkDescriptorPoolSize poolSizes[2] = {};
 	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	poolSizes[0].descriptorCount = 1;
 	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	poolSizes[1].descriptorCount = static_cast<uint32_t>(numTextures);
-
+	poolSizes[1].descriptorCount = static_cast<uint32_t>(textures.size());
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -271,13 +278,13 @@ void Mesh::createDescriptorSet(Texture* emptyTexture)
 
 	std::vector<VkDescriptorSetLayoutBinding> bindings;
 
-	VkDescriptorSetLayoutBinding uboBinding = {};
-	uboBinding.binding = 0;
-	uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uboBinding.descriptorCount = 1;
-	uboBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-	uboBinding.pImmutableSamplers = nullptr;
-	bindings.push_back(uboBinding);
+	VkDescriptorSetLayoutBinding textureBinding = {}, dataBinding = {};
+	dataBinding.binding = 0;
+	dataBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	dataBinding.descriptorCount = 1;
+	dataBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	dataBinding.pImmutableSamplers = nullptr;
+	bindings.push_back(dataBinding);
 
 	// combined image samplers for textures
 	for (size_t i = 0; i < numTextures; i++)
@@ -299,13 +306,12 @@ void Mesh::createDescriptorSet(Texture* emptyTexture)
 	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set layout!");
 
-	VkDeviceSize bufferSize = sizeof(material->ubo);
+	VkDeviceSize bufferSize = sizeof(ubo);
 	HelperFunctions::createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		uniformBuffer.buffer, uniformBuffer.bufferMemory);
 
-	void* data;
-	vkMapMemory(device, uniformBuffer.bufferMemory, 0, sizeof(material->ubo), 0, &data);
-	memcpy(data, &material->ubo, sizeof(material->ubo));
+	vkMapMemory(device, uniformBuffer.bufferMemory, 0, bufferSize, 0, &uniformBuffer.mappedMemory);
+	memcpy(uniformBuffer.mappedMemory, &ubo, size_t(bufferSize));
 	vkUnmapMemory(device, uniformBuffer.bufferMemory);
 
 
@@ -317,13 +323,11 @@ void Mesh::createDescriptorSet(Texture* emptyTexture)
 	if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create material descriptor set");
 
-	
-
 	// fill image descriptors and create write descriptors
 	VkDescriptorBufferInfo bufferInfo = {};
 	bufferInfo.buffer = uniformBuffer.buffer;
 	bufferInfo.offset = 0;
-	bufferInfo.range = sizeof(material->ubo);
+	bufferInfo.range = sizeof(ubo);
 
 	std::vector<VkWriteDescriptorSet> writes;
 
@@ -356,14 +360,92 @@ void Mesh::createDescriptorSet(Texture* emptyTexture)
 	vkUpdateDescriptorSets(device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
+void Mesh::createDescriptorSet()
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
+	VkDescriptorPoolSize poolSize = {};
+	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSize.descriptorCount = 1;
+
+	VkDescriptorPoolCreateInfo poolInfo = {};
+	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	poolInfo.maxSets = 1;
+	poolInfo.poolSizeCount = 1;
+	poolInfo.pPoolSizes = &poolSize;
+
+	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor pool");
+
+	VkDescriptorSetLayoutBinding binding = {};
+	binding.binding = 0;
+	binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	binding.descriptorCount = 1;
+	binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	binding.pImmutableSamplers = nullptr;
+		
+
+	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+	layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layoutInfo.bindingCount = 1;
+	layoutInfo.pBindings = &binding;
+
+	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create descriptor set layout!");
+
+	VkDeviceSize bufferSize = sizeof(meshUBO);
+	HelperFunctions::createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		uniformBuffer.buffer, uniformBuffer.bufferMemory);
+
+	vkMapMemory(device, uniformBuffer.bufferMemory, 0, bufferSize, 0, &uniformBuffer.mappedMemory);
+	memcpy(uniformBuffer.mappedMemory, &meshUBO, size_t(bufferSize));
+	vkUnmapMemory(device, uniformBuffer.bufferMemory);
+
+
+	VkDescriptorSetAllocateInfo allocInfo = {};
+	allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	allocInfo.descriptorPool = descriptorPool;
+	allocInfo.pSetLayouts = &descriptorSetLayout;
+	allocInfo.descriptorSetCount = 1;
+	if (vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet) != VK_SUCCESS)
+		throw std::runtime_error("Failed to create material descriptor set");
+
+	// fill image descriptors and create write descriptors
+	VkDescriptorBufferInfo bufferInfo = {};
+	bufferInfo.buffer = uniformBuffer.buffer;
+	bufferInfo.offset = 0;
+	bufferInfo.range = sizeof(meshUBO);
+
+	VkWriteDescriptorSet uboWrite = {};
+	uboWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	uboWrite.dstSet = descriptorSet;
+	uboWrite.dstBinding = 0;
+	uboWrite.dstArrayElement = 0;
+	uboWrite.descriptorCount = 1;
+	uboWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboWrite.pBufferInfo = &bufferInfo;
+
+	vkUpdateDescriptorSets(device, 1, &uboWrite, 0, nullptr);
+}
+
+void Mesh::setModelMatrix(glm::mat4 m)
+{
+	meshUBO.model = m;
+
+	memcpy(uniformBuffer.mappedMemory, &meshUBO, sizeof(meshUBO));
+}
+
 // mesh
 void Mesh::destroyMesh()
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
+	material->destroy();
+
 	vkDestroyBuffer(device, vertexBuffer.buffer, nullptr);
 	vkDestroyBuffer(device, indexBuffer.buffer, nullptr);
 	vkDestroyBuffer(device, uniformBuffer.buffer, nullptr);
+
 	vkFreeMemory(device, vertexBuffer.bufferMemory, nullptr);
 	vkFreeMemory(device, indexBuffer.bufferMemory, nullptr);
 	vkFreeMemory(device, uniformBuffer.bufferMemory, nullptr);
@@ -381,16 +463,9 @@ void Model::destroyModel()
 		delete meshes[0];
 		meshes.erase(meshes.begin());
 	}
-
-	while (!materials.empty())
-	{
-		materials[0]->destroy();
-		delete materials[0];
-		materials.erase(materials.begin());
-	}
 }
 
-void Model::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useDescriptors)
+void Model::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useTextures)
 {
 	static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	VkDeviceSize offsets[] = { 0 };
@@ -399,11 +474,15 @@ void Model::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayou
 	{
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &meshes[i]->vertexBuffer.buffer, offsets);
 		vkCmdBindIndexBuffer(commandBuffer, meshes[i]->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+		
+		// bind model uniform buffer
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+			1, 1, &meshes[i]->descriptorSet, 0, nullptr);
 
-		if (useDescriptors)
+		if (useTextures)
 		{
 			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-				1, 1, &meshes[i]->descriptorSet, 0, nullptr);
+				2, 1, &meshes[i]->material->descriptorSet, 0, nullptr);
 		}
 
 		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshes[i]->indices.size()), 1, 0, 0, 0);

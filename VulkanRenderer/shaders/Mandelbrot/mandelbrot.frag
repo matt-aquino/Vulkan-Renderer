@@ -7,6 +7,7 @@
 #version 460
 #define TWO_PI 2.0f * 3.14159265f
 
+layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 fragColor;
 
 layout(push_constant) uniform PushConstants

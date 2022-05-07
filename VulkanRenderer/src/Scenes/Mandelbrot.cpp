@@ -18,7 +18,6 @@ Mandelbrot::Mandelbrot(std::string name, const VulkanSwapChain& swapChain)
 	CreateFramebuffers(swapChain);
 	CreateSyncObjects(swapChain);
 
-	CreateCommandPool();
 	CreateCommandBuffers();
 
 	RecordScene();
@@ -95,7 +94,12 @@ void Mandelbrot::RecreateScene(const VulkanSwapChain& swapChain)
 	RecordScene();
 }
 
-VulkanReturnValues Mandelbrot::DrawScene(const VulkanSwapChain& swapChain)
+void Mandelbrot::DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial)
+{
+
+}
+
+VulkanReturnValues Mandelbrot::PresentScene(const VulkanSwapChain& swapChain)
 {
 	static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	static auto queues = VulkanDevice::GetVulkanDevice()->GetQueues();
@@ -180,15 +184,13 @@ void Mandelbrot::DestroyScene(bool isRecreation)
 			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
 			vkDestroyFence(device, inFlightFences[i], nullptr);
 		}
-
-		vkDestroyCommandPool(device, commandPool, nullptr);
 	}
 }
 
 void Mandelbrot::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 {
 #pragma region SHADERS
-	auto vertShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Mandelbrot/pass_thru.spv");
+	auto vertShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Global/full_screen_quad.spv");
 	VkShaderModule vertShaderModule = HelperFunctions::CreateShaderModules(vertShaderCode);
 
 	auto fragShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Mandelbrot/mandelbrot.spv");

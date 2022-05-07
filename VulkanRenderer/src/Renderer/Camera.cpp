@@ -6,9 +6,8 @@ Camera::Camera(glm::vec3 pos)
 {
 	position = pos;
 	startPosition = position;
-	pitch = 0.0f;
-	//yaw = 90.0f;
-	yaw = 0.0f;
+	pitch = -15.0f;
+	yaw = -90.0f;
 	zoom = 45.0f;
 	forward = glm::vec3(0.0f, 0.0f, -1.0f);
 	up = WorldUp;

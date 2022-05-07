@@ -22,6 +22,7 @@
 #include "Renderer/Camera.h"
 #include "Renderer/Loaders.h"
 #include "Renderer/BasicShapes.h"
+#include "Renderer/Light.h"
 #include "SDL_scancode.h"
 
 #define SHADERPATH "shaders/"
@@ -32,15 +33,18 @@ public:
 	VulkanScene();
 	~VulkanScene();
 
-	// ** Perform initial setup of a scene
-	virtual void RecordScene() = 0;
 
 	// ** Recreate the scene when swap chain goes out of date **
 	virtual void RecreateScene(const VulkanSwapChain& swapChain) = 0;
 
+	// ** Perform initial setup of a scene
+	virtual void RecordScene() = 0;
+
 	// ** perform main loop of scene **
-	virtual VulkanReturnValues DrawScene(const VulkanSwapChain& swapChain) = 0;
+	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) = 0;
 	
+	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) = 0;
+
 	// ** Clean up resources ** 
 	virtual void DestroyScene(bool isRecreation) = 0;
 

@@ -15,8 +15,10 @@ public:
 	// ** Recreate the scene when swap chain goes out of date **
 	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
 
+	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
+
 	// ** perform main loop of scene **
-	virtual VulkanReturnValues DrawScene(const VulkanSwapChain& swapChain) override;
+	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
 
 	// ** Clean up resources ** 
 	virtual void DestroyScene(bool isRecreation) override;

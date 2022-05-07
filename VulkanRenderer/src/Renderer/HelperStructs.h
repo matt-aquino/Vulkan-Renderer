@@ -50,6 +50,7 @@ struct VulkanBuffer
 {
 	VkBuffer buffer;
 	VkDeviceMemory bufferMemory;
+	void* mappedMemory; // idea taken from Sascha Willem. removes repeated VkMapMemory/VkUnmapMemory calls
 };
 
 struct VulkanGraphicsPipeline
@@ -189,8 +190,8 @@ struct Material
 
 	struct
 	{
-		alignas(16)glm::vec3 ambient = glm::vec3(0.0f);
-		alignas(16)glm::vec3 diffuse = glm::vec3(0.0f);
+		alignas(16)glm::vec3 ambient = glm::vec3(0.1f);
+		alignas(16)glm::vec3 diffuse = glm::vec3(0.5f);
 		alignas(16)glm::vec3 specular = glm::vec3(0.0f);
 		alignas(16)glm::vec3 transmittance = glm::vec3(0.0f);
 		alignas(16)glm::vec3 emission = glm::vec3(0.0f);
@@ -224,7 +225,14 @@ struct Material
 	Texture* roughnessTex = nullptr;			 // map_Pr
 	Texture* sheenTex = nullptr;				 // map_Ps
 
+	VkDescriptorSet descriptorSet;
+	VkDescriptorSetLayout descriptorSetLayout;
+	VkDescriptorPool descriptorPool;
+	VulkanBuffer uniformBuffer;
+
 	void destroy();
+
+	void createDescriptorSet(Texture* emptyTexture);
 };
 
 struct Mesh
@@ -234,24 +242,28 @@ struct Mesh
 	VulkanBuffer vertexBuffer, indexBuffer;
 	Material* material;
 
+	struct
+	{
+		glm::mat4 model = glm::mat4(1.0f);
+	} meshUBO;
+
 	VulkanBuffer uniformBuffer;
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorSet descriptorSet;
 	VkDescriptorPool descriptorPool;
 
-	void createDescriptorSet(Texture* emptyTexture);
-
+	void createDescriptorSet();
+	void setModelMatrix(glm::mat4 m);
 	void destroyMesh();
 };
 
 struct Model
 {
-	Model(std::vector<Mesh*> modelMeshes, std::vector<Material*> modelMats) 
-		: meshes(modelMeshes), materials(modelMats) {}
+	Model(std::vector<Mesh*> modelMeshes) 
+		: meshes(modelMeshes){}
 	std::vector<Mesh*> meshes;
-	std::vector<Material*> materials;
 	void destroyModel();
-	void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useDescriptors = false);
+	void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useTextures = false);
 };
 
 // hash functions

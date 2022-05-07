@@ -29,7 +29,6 @@ HelloWorldTriangle::HelloWorldTriangle(std::string name, const VulkanSwapChain& 
 	CreateGraphicsPipeline(swapChain);
 	CreateFramebuffers(swapChain);
 	CreateSyncObjects(swapChain);
-	CreateCommandPool();
 	CreateCommandBuffers();
 	CreateVertexBuffer();
 	RecordScene();
@@ -93,7 +92,12 @@ void HelloWorldTriangle::RecreateScene(const VulkanSwapChain& swapChain)
 	RecordScene();
 }
 
-VulkanReturnValues HelloWorldTriangle::DrawScene(const VulkanSwapChain& swapChain)
+void HelloWorldTriangle::DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial)
+{
+
+}
+
+VulkanReturnValues HelloWorldTriangle::PresentScene(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
@@ -298,7 +302,6 @@ void HelloWorldTriangle::DestroyScene(bool isRecreation)
 			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
 			vkDestroyFence(device, inFlightFences[i], nullptr);
 		}
-		vkDestroyCommandPool(device, commandPool, nullptr);
 	}
 }
 

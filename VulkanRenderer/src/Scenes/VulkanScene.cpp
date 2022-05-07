@@ -1,6 +1,7 @@
 #include "VulkanScene.h"
 VulkanScene::VulkanScene()
 {
+	CreateCommandPool();
 }
 
 VulkanScene::~VulkanScene()
@@ -8,6 +9,8 @@ VulkanScene::~VulkanScene()
 	ModelLoader::destroy();
 	TextureLoader::destroy();
 	BasicShapes::destroyShapes();
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	vkDestroyCommandPool(device, commandPool, nullptr);
 }
 
 void VulkanScene::CreateCommandPool()
@@ -21,6 +24,8 @@ void VulkanScene::CreateCommandPool()
 	if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create command pool");
 	
+	ModelLoader::setCommandPool(commandPool);
+	TextureLoader::setCommandPool(commandPool);
 	BasicShapes::loadShapes(commandPool);
 }
 

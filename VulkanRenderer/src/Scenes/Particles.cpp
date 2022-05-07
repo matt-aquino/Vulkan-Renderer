@@ -11,7 +11,6 @@ Particles::Particles(std::string name, const VulkanSwapChain& swapChain)
 
 	srand(unsigned int (time(NULL))); // seed random number generator
 
-	CreateCommandPool();
 	CreateUniforms(swapChain);
 	CreateParticles(false);
 	CreateRenderPass(swapChain);
@@ -107,7 +106,12 @@ void Particles::RecreateScene(const VulkanSwapChain& swapChain)
 	RecordScene();
 }
 
-VulkanReturnValues Particles::DrawScene(const VulkanSwapChain& swapChain)
+void Particles::DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial)
+{
+
+}
+
+VulkanReturnValues Particles::PresentScene(const VulkanSwapChain& swapChain)
 {
 
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
@@ -204,8 +208,6 @@ void Particles::DestroyScene(bool isRecreation)
 			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
 			vkDestroyFence(device, inFlightFences[i], nullptr);
 		}
-
-		vkDestroyCommandPool(device, commandPool, nullptr);
 	}
 		
 	computePipeline.destroyComputePipeline(device);

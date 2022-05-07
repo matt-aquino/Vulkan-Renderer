@@ -90,8 +90,7 @@ void VulkanDevice::CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSu
 
 VulkanDevice* VulkanDevice::GetVulkanDevice()
 {
-    if (device != nullptr)
-        return device;
+    return device;
 }
 
 void VulkanDevice::DeleteLogicalDevice()

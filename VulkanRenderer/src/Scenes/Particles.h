@@ -11,10 +11,11 @@ public:
 	Particles(std::string name, const VulkanSwapChain & swapChain);
 	~Particles();
 
-	void RecordScene() override;
-	void RecreateScene(const VulkanSwapChain& swapChain) override;
-	VulkanReturnValues DrawScene(const VulkanSwapChain& swapChain) override;
-	void DestroyScene(bool isRecreation) override;
+	virtual void RecordScene() override;
+	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
+	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
+	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
+	virtual void DestroyScene(bool isRecreation) override;
 
 	void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
 	void HandleMouseInput(const int x, const int y) override;

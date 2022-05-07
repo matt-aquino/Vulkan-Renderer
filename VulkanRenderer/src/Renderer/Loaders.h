@@ -24,9 +24,10 @@ const std::string directory = "assets/models/";
 
 namespace ModelLoader
 {
-	Model* loadModel(std::string folder, std::string file, VkCommandPool& commandPool);
-	VulkanBuffer createMeshVertexBuffer(const std::vector<ModelVertex>& vertices, VkCommandPool& commandPool);
-	VulkanBuffer createMeshIndexBuffer(const std::vector<uint32_t>& indices, VkCommandPool& commandPool);
+	Model* loadModel(std::string folder, std::string file);
+	VulkanBuffer createMeshVertexBuffer(const std::vector<ModelVertex>& vertices);
+	VulkanBuffer createMeshIndexBuffer(const std::vector<uint32_t>& indices);
+	void setCommandPool(VkCommandPool& commandPool);
 
 	void destroy();
 }
@@ -51,14 +52,13 @@ private:
 
 namespace TextureLoader
 {
-	Texture* loadTexture(VkCommandPool& commandPool, std::string folder, std::string name, TextureType textureType, VkImageType viewType, VkFormat format, VkImageTiling tiling,
+	Texture* loadTexture(std::string folder, std::string name, TextureType textureType, VkImageType viewType, VkFormat format, VkImageTiling tiling,
 		VkImageAspectFlags aspectFlags, VkFilter filter, VkSamplerAddressMode mode);
-	Texture* loadEmptyTexture(VkCommandPool& commandPool);
+	void loadEmptyTexture(VkCommandPool& commandPool);
 
+	Texture* getEmptyTexture();
 	void destroy();
-
-	static Texture* emptyTexture = nullptr;
-	static std::unordered_map<std::string, Texture*> loadedTextures;
+	void setCommandPool(VkCommandPool& commandPool);
 }
 
 /*

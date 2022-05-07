@@ -21,8 +21,7 @@ ModeledObject::ModeledObject(std::string name, const VulkanSwapChain& swapChain)
 {
 	sceneName = name;
 
-	CreateCommandPool();
-	object = ModelLoader::loadModel("ZeldaChest/", "Medium_Chest.obj", commandPool);
+	object = ModelLoader::loadModel("ZeldaChest", "Medium_Chest.obj");
 
 	CreateRenderPass(swapChain);
 	CreateUniforms(swapChain);
@@ -77,15 +76,11 @@ void ModeledObject::RecordScene()
 		renderPassInfo.pClearValues = clearColors;
 
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
+		vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 		
-		// render models
-		{
-			vkCmdBeginRenderPass(commandBuffersList[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+		DrawScene(commandBuffersList[i], graphicsPipeline.pipelineLayout);
 
-			object->draw(commandBuffersList[i], graphicsPipeline.pipelineLayout, true);
-
-			vkCmdEndRenderPass(commandBuffersList[i]);
-		}
+		vkCmdEndRenderPass(commandBuffersList[i]);
 
 		if (vkEndCommandBuffer(commandBuffersList[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to record command buffer");
@@ -107,7 +102,12 @@ void ModeledObject::RecreateScene(const VulkanSwapChain& swapChain)
 	RecordScene();
 }
 
-VulkanReturnValues ModeledObject::DrawScene(const VulkanSwapChain& swapChain)
+void ModeledObject::DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial)
+{
+	object->draw(commandBuffer, pipelineLayout, useMaterial);
+}
+
+VulkanReturnValues ModeledObject::PresentScene(const VulkanSwapChain& swapChain)
 {
 	static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	static auto queues = VulkanDevice::GetVulkanDevice()->GetQueues();
@@ -203,8 +203,6 @@ void ModeledObject::DestroyScene(bool isRecreation)
 			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
 			vkDestroyFence(device, inFlightFences[i], nullptr);
 		}	
-
-		vkDestroyCommandPool(device, commandPool, nullptr);
 		object->destroyModel();
 		delete object;
 	}

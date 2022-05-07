@@ -179,6 +179,9 @@ namespace HelperFunctions
 	void createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, 
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& memory)
 	{
+		static VkPhysicalDevice physical = VulkanDevice::GetVulkanDevice()->GetPhysicalDevice();
+		static VkDevice logical = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+
 		VkImageCreateInfo imageInfo = {};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
 		imageInfo.imageType = imageType;
@@ -194,15 +197,15 @@ namespace HelperFunctions
 		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-		if (vkCreateImage(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &imageInfo, nullptr, &image) != VK_SUCCESS)
+		if (vkCreateImage(logical, &imageInfo, nullptr, &image) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create image!");
 
 		// find memory type
 		VkMemoryRequirements memRequirements;
-		vkGetImageMemoryRequirements(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), image, &memRequirements);
+		vkGetImageMemoryRequirements(logical, image, &memRequirements);
 
 		VkPhysicalDeviceMemoryProperties memProperties;
-		vkGetPhysicalDeviceMemoryProperties(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), &memProperties);
+		vkGetPhysicalDeviceMemoryProperties(physical, &memProperties);
 
 		uint32_t typeIndex = 0;
 		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++)
@@ -219,10 +222,10 @@ namespace HelperFunctions
 		allocInfo.allocationSize = memRequirements.size;
 		allocInfo.memoryTypeIndex = typeIndex;
 
-		if (vkAllocateMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &allocInfo, nullptr, &memory) != VK_SUCCESS)
+		if (vkAllocateMemory(logical, &allocInfo, nullptr, &memory) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate image memory");
 
-		vkBindImageMemory(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), image, memory, 0);
+		vkBindImageMemory(logical, image, memory, 0);
 
 	}
 
