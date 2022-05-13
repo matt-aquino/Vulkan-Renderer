@@ -75,9 +75,9 @@ void Camera::RotateCamera(float xOffset, float yOffset)
 
 void Camera::UpdateViewMatrix()
 {
-	forward.x = cos(glm::radians(yaw) * cos(glm::radians(pitch)));
+	forward.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
 	forward.y = sin(glm::radians(pitch));
-	forward.z = sin(glm::radians(yaw) * cos(glm::radians(pitch)));
+	forward.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
 	forward = glm::normalize(forward);
 	right = glm::normalize(glm::cross(forward, WorldUp));
 	up = glm::normalize(glm::cross(right, forward));
