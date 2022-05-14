@@ -5,14 +5,6 @@ namespace BasicShapes
 {
 	namespace shape// for private members and functions
 	{
-		void createBox();
-		void createSphere();
-		void createTorus();
-		void createPlane();
-		void createCone();
-		void createMonkey();
-		void createCylinder();
-
 		VkCommandPool commandPool;
 		Mesh* box = nullptr;
 		Mesh* plane = nullptr;
@@ -21,6 +13,120 @@ namespace BasicShapes
 		Model* cone = nullptr;
 		Model* monkey = nullptr;
 		Model* cylinder = nullptr;
+
+		void createBox()
+		{
+			box = new Mesh();
+
+			box->vertices = {
+				// front
+				{{-0.5f, -0.5f, 0.5f},  {0.0f, 0.0f}, {0.0f,  0.0f, 1.0f}}, // 0
+				{{ 0.5f, -0.5f, 0.5f},  {1.0f, 0.0f}, {0.0f,  0.0f, 1.0f}}, // 1
+				{{ 0.5f,  0.5f, 0.5f},  {1.0f, 1.0f}, {0.0f,  0.0f, 1.0f}}, // 2
+				{{-0.5f,  0.5f, 0.5f},  {0.0f, 1.0f}, {0.0f,  0.0f, 1.0f}}, // 3
+
+				// back
+				{{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {0.0f,  0.0f,  -1.0f}}, // 4
+				{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {0.0f,  0.0f,  -1.0f}}, // 5
+				{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f,  0.0f,  -1.0f}}, // 6
+				{{ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f,  0.0f,  -1.0f}}, // 7
+
+				// left
+				{{-0.5f, -0.5f, -0.5f},  {0.0f, 0.0f}, {-1.0f, 0.0f,  0.0f}}, // 8
+				{{-0.5f, -0.5f,  0.5f},  {1.0f, 0.0f}, {-1.0f, 0.0f,  0.0f}}, // 9
+				{{-0.5f,  0.5f,  0.5f},  {1.0f, 1.0f}, {-1.0f, 0.0f,  0.0f}}, // 10
+				{{-0.5f,  0.5f, -0.5f},  {0.0f, 1.0f}, {-1.0f, 0.0f,  0.0f}}, // 11
+
+				// right
+				{{ 0.5f, -0.5f,  0.5f},  {0.0f, 0.0f}, { 1.0f, 0.0f,  0.0f}}, // 12
+				{{ 0.5f, -0.5f, -0.5f},	{1.0f, 0.0f}, { 1.0f, 0.0f,  0.0f}}, // 13
+				{{ 0.5f,  0.5f, -0.5f},	{1.0f, 1.0f}, { 1.0f, 0.0f,  0.0f}}, // 14
+				{{ 0.5f,  0.5f,  0.5f},  {0.0f, 1.0f}, { 1.0f, 0.0f,  0.0f}}, // 15
+
+				// top
+				{{-0.5f,  0.5f,  0.5f},  {0.0f, 0.0f}, { 0.0f, 1.0f,  0.0f}}, // 16
+				{{ 0.5f,  0.5f,  0.5f},  {1.0f, 0.0f}, { 0.0f, 1.0f,  0.0f}}, // 17
+				{{ 0.5f,  0.5f, -0.5f},	 {1.0f, 1.0f}, { 0.0f, 1.0f,  0.0f}}, // 18
+				{{-0.5f,  0.5f, -0.5f},	 {0.0f, 1.0f}, { 0.0f, 1.0f,  0.0f}}, // 19
+
+				// bottom
+				{{ 0.5f, -0.5f,  0.5f},  {0.0f, 0.0f}, { 0.0f,-1.0f,  0.0f}}, // 20
+				{{-0.5f, -0.5f,  0.5f},  {1.0f, 0.0f}, { 0.0f,-1.0f,  0.0f}}, // 21
+				{{-0.5f, -0.5f, -0.5f},	 {1.0f, 1.0f}, { 0.0f,-1.0f,  0.0f}}, // 22
+				{{ 0.5f, -0.5f, -0.5f},	 {0.0f, 1.0f}, { 0.0f,-1.0f,  0.0f}}, // 23
+			};
+			box->indices = {
+				0, 1, 2, 0, 2, 3,       // front
+				4, 5, 6, 4, 6, 7,       // back
+				8, 9, 10, 8, 10, 11,    // left
+				12, 13, 14, 12, 14, 15, // right
+				16, 17, 18, 16, 18, 19, // top
+				20, 21, 22, 20, 22, 23  // bottom
+			};
+
+			box->vertexBuffer = ModelLoader::createMeshVertexBuffer(box->vertices);
+			box->indexBuffer = ModelLoader::createMeshIndexBuffer(box->indices);
+
+			Texture* emptyTexture = TextureLoader::getEmptyTexture();
+
+			box->material = new Material();
+			box->material->ubo.ambient = glm::vec3(0.1f);
+			box->material->ubo.diffuse = glm::vec3(0.8f, 0.2f, 0.6f);
+
+			box->material->createDescriptorSet(emptyTexture);
+
+			box->createDescriptorSet();
+		}
+
+		void createSphere()
+		{
+			sphere = ModelLoader::loadModel("BasicShapes", "basic_sphere.obj");
+		}
+
+		void createTorus()
+		{
+			torus = ModelLoader::loadModel("BasicShapes", "basic_torus.obj");
+		}
+
+		void createPlane()
+		{
+			plane = new Mesh();
+			plane->vertices = {
+				{{-0.5f,  0.0f,  0.5f},  {0.0f, 0.0f}, { 0.0f, 1.0f,  0.0f}},
+				{{ 0.5f,  0.0f,  0.5f},  {1.0f, 0.0f}, { 0.0f, 1.0f,  0.0f}},
+				{{ 0.5f,  0.0f, -0.5f},	 {1.0f, 1.0f}, { 0.0f, 1.0f,  0.0f}},
+				{{-0.5f,  0.0f, -0.5f},	 {0.0f, 1.0f}, { 0.0f, 1.0f,  0.0f}}
+			};
+
+			plane->indices = { 0, 1, 2, 0, 2, 3 };
+			plane->vertexBuffer = ModelLoader::createMeshVertexBuffer(plane->vertices);
+			plane->indexBuffer = ModelLoader::createMeshIndexBuffer(plane->indices);
+
+			Texture* emptyTexture = TextureLoader::getEmptyTexture();
+
+			plane->material = new Material();
+			plane->material->ubo.ambient = glm::vec3(0.1f);
+			plane->material->ubo.diffuse = glm::vec3(1.0f);
+
+			plane->material->createDescriptorSet(emptyTexture);
+
+			plane->createDescriptorSet();
+		}
+
+		void createCone()
+		{
+			cone = ModelLoader::loadModel("BasicShapes", "basic_cone.obj");
+		}
+
+		void createMonkey()
+		{
+			monkey = ModelLoader::loadModel("BasicShapes", "basic_monkey.obj");
+		}
+
+		void createCylinder()
+		{
+			cylinder = ModelLoader::loadModel("BasicShapes", "basic_cylinder.obj");
+		}
 	}
 
 	void drawBox(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial)
@@ -192,129 +298,6 @@ namespace BasicShapes
 		if (!shape::monkey)	  shape::createMonkey();
 		if (!shape::cylinder) shape::createCylinder();
 	}
-
-	void shape::createBox()
-	{
-		box = new Mesh();
-
-		box->vertices = {
-			// front
-			{{-0.5f, -0.5f, 0.5f},  {0.0f, 0.0f}, {0.0f,  0.0f, 1.0f}}, // 0
-			{{ 0.5f, -0.5f, 0.5f},  {1.0f, 0.0f}, {0.0f,  0.0f, 1.0f}}, // 1
-			{{ 0.5f,  0.5f, 0.5f},  {1.0f, 1.0f}, {0.0f,  0.0f, 1.0f}}, // 2
-			{{-0.5f,  0.5f, 0.5f},  {0.0f, 1.0f}, {0.0f,  0.0f, 1.0f}}, // 3
-
-			// back
-			{{ 0.5f, -0.5f, -0.5f}, {0.0f, 0.0f}, {0.0f,  0.0f,  -1.0f}}, // 4
-			{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f}, {0.0f,  0.0f,  -1.0f}}, // 5
-			{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f}, {0.0f,  0.0f,  -1.0f}}, // 6
-			{{ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f}, {0.0f,  0.0f,  -1.0f}}, // 7
-
-			// left
-			{{-0.5f, -0.5f, -0.5f},  {0.0f, 0.0f}, {-1.0f, 0.0f,  0.0f}}, // 8
-			{{-0.5f, -0.5f,  0.5f},  {1.0f, 0.0f}, {-1.0f, 0.0f,  0.0f}}, // 9
-			{{-0.5f,  0.5f,  0.5f},  {1.0f, 1.0f}, {-1.0f, 0.0f,  0.0f}}, // 10
-			{{-0.5f,  0.5f, -0.5f},  {0.0f, 1.0f}, {-1.0f, 0.0f,  0.0f}}, // 11
-
-			// right
-			{{ 0.5f, -0.5f,  0.5f},  {0.0f, 0.0f}, { 1.0f, 0.0f,  0.0f}}, // 12
-			{{ 0.5f, -0.5f, -0.5f},	{1.0f, 0.0f}, { 1.0f, 0.0f,  0.0f}}, // 13
-			{{ 0.5f,  0.5f, -0.5f},	{1.0f, 1.0f}, { 1.0f, 0.0f,  0.0f}}, // 14
-			{{ 0.5f,  0.5f,  0.5f},  {0.0f, 1.0f}, { 1.0f, 0.0f,  0.0f}}, // 15
-
-			// top
-			{{-0.5f,  0.5f,  0.5f},  {0.0f, 0.0f}, { 0.0f, 1.0f,  0.0f}}, // 16
-			{{ 0.5f,  0.5f,  0.5f},  {1.0f, 0.0f}, { 0.0f, 1.0f,  0.0f}}, // 17
-			{{ 0.5f,  0.5f, -0.5f},	 {1.0f, 1.0f}, { 0.0f, 1.0f,  0.0f}}, // 18
-			{{-0.5f,  0.5f, -0.5f},	 {0.0f, 1.0f}, { 0.0f, 1.0f,  0.0f}}, // 19
-
-			// bottom
-			{{ 0.5f, -0.5f,  0.5f},  {0.0f, 0.0f}, { 0.0f,-1.0f,  0.0f}}, // 20
-			{{-0.5f, -0.5f,  0.5f},  {1.0f, 0.0f}, { 0.0f,-1.0f,  0.0f}}, // 21
-			{{-0.5f, -0.5f, -0.5f},	 {1.0f, 1.0f}, { 0.0f,-1.0f,  0.0f}}, // 22
-			{{ 0.5f, -0.5f, -0.5f},	 {0.0f, 1.0f}, { 0.0f,-1.0f,  0.0f}}, // 23
-		};
-		box->indices = {
-			0, 1, 2, 0, 2, 3,       // front
-			4, 5, 6, 4, 6, 7,       // back
-			8, 9, 10, 8, 10, 11,    // left
-			12, 13, 14, 12, 14, 15, // right
-			16, 17, 18, 16, 18, 19, // top
-			20, 21, 22, 20, 22, 23  // bottom
-		};
-
-		box->vertexBuffer = ModelLoader::createMeshVertexBuffer(box->vertices);
-		box->indexBuffer = ModelLoader::createMeshIndexBuffer(box->indices);
-
-		Texture* emptyTexture = TextureLoader::getEmptyTexture();
-
-		box->material = new Material();
-		box->material->ubo.ambient = glm::vec3(0.1f);
-		box->material->ubo.diffuse = glm::vec3(0.8f, 0.2f, 0.6f);
-
-		box->material->createDescriptorSet(emptyTexture);
-
-		box->createDescriptorSet();
-	}
-
-	void shape::createSphere()
-	{
-		sphere = ModelLoader::loadModel("BasicShapes", "basic_sphere.obj");
-	}
-
-	void shape::createTorus()
-	{
-		torus = ModelLoader::loadModel("BasicShapes", "basic_torus.obj");
-	}
-
-	void shape::createPlane()
-	{
-		plane = new Mesh();
-		plane->vertices = {
-			{{-0.5f,  0.0f,  0.5f},  {0.0f, 0.0f}, { 0.0f, 1.0f,  0.0f}},
-			{{ 0.5f,  0.0f,  0.5f},  {1.0f, 0.0f}, { 0.0f, 1.0f,  0.0f}},
-			{{ 0.5f,  0.0f, -0.5f},	 {1.0f, 1.0f}, { 0.0f, 1.0f,  0.0f}},
-			{{-0.5f,  0.0f, -0.5f},	 {0.0f, 1.0f}, { 0.0f, 1.0f,  0.0f}}
-		};
-
-		plane->indices = { 0, 1, 2, 0, 2, 3 };
-		plane->vertexBuffer = ModelLoader::createMeshVertexBuffer(plane->vertices);
-		plane->indexBuffer = ModelLoader::createMeshIndexBuffer(plane->indices);
-
-		Texture* emptyTexture = TextureLoader::getEmptyTexture();
-
-		plane->material = new Material();
-		plane->material->ubo.ambient = glm::vec3(0.1f);
-		plane->material->ubo.diffuse = glm::vec3(1.0f);
-
-		plane->material->createDescriptorSet(emptyTexture);
-
-		plane->createDescriptorSet();
-	}
-
-	void shape::createCone()
-	{
-		cone = ModelLoader::loadModel("BasicShapes", "basic_cone.obj");
-	}
-	
-	void shape::createMonkey()
-	{
-		monkey = ModelLoader::loadModel("BasicShapes", "basic_monkey.obj");
-	}
-	
-	void shape::createCylinder()
-	{
-		cylinder = ModelLoader::loadModel("BasicShapes", "basic_cylinder.obj");
-	}
-
-	Mesh* getBox() { return shape::box; }
-	Mesh* getSphere() { return shape::sphere->meshes[0]; }
-	Mesh* getTorus() { return shape::torus->meshes[0]; }
-	Mesh* getPlane() { return shape::plane; }
-	Mesh* getCone() { return shape::cone->meshes[0]; }
-	Mesh* getMonkey() { return shape::monkey->meshes[0]; }
-	Mesh* getCylinder() { return shape::cylinder->meshes[0]; }
-
 	void destroyShapes()
 	{
 		if (shape::box)
@@ -358,6 +341,234 @@ namespace BasicShapes
 			shape::cylinder->destroyModel();
 			delete shape::cylinder;
 		}
+	}
+	
+	Mesh* getBox() 
+	{ 
+		if (!shape::box)
+			shape::createBox();
+
+		return shape::box; 
+	}
+	Mesh* getSphere() 
+	{ 
+		if (!shape::sphere)
+			shape::createSphere();
+
+		return shape::sphere->meshes[0]; 
+	}
+	Mesh* getTorus() 
+	{ 
+		if (!shape::torus)
+			shape::createTorus();
+
+		return shape::torus->meshes[0]; 
+	}
+	Mesh* getPlane() 
+	{ 
+		if (!shape::plane)
+			shape::createPlane();
+
+		return shape::plane; 
+	}
+	Mesh* getCone() 
+	{
+		if (!shape::cone)
+			shape::createCone();
+
+		return shape::cone->meshes[0]; 
+	}
+	Mesh* getMonkey() 
+	{ 
+		if (!shape::monkey)
+			shape::createMonkey();
+
+		return shape::monkey->meshes[0]; 
+	}
+	Mesh* getCylinder() 
+	{
+		if (!shape::cylinder)
+			shape::createCylinder();
+
+		return shape::cylinder->meshes[0]; 
+	}
+
+	Mesh createBox(float width, float height, float depth)
+	{
+		// halve the dimensions to produce an accurately sized box
+		// for example, using 1, 1, 1, the width/height/depth would go between -1 and 1,
+		// effectively making the size of each dimension 2
+		float w = width / 2.0f;
+		float h = height / 2.0f;
+		float d = depth / 2.0f;
+
+		Mesh box = {};
+
+		box.vertices = {
+			// front
+			{{-w, -h,  d},  {0.0f, 0.0f}, { 0.0f,  0.0f,   1.0f}}, // 0
+			{{ w, -h,  d},  {1.0f, 0.0f}, { 0.0f,  0.0f,   1.0f}}, // 1
+			{{ w,  h,  d},  {1.0f, 1.0f}, { 0.0f,  0.0f,   1.0f}}, // 2
+			{{-w,  h,  d},  {0.0f, 1.0f}, { 0.0f,  0.0f,   1.0f}}, // 3
+
+			// back
+			{{ w, -h, -d},  {0.0f, 0.0f}, { 0.0f,  0.0f,  -1.0f}}, // 4
+			{{-w, -h, -d},  {1.0f, 0.0f}, { 0.0f,  0.0f,  -1.0f}}, // 5
+			{{-w,  h, -d},  {1.0f, 1.0f}, { 0.0f,  0.0f,  -1.0f}}, // 6
+			{{ w,  h, -d},  {0.0f, 1.0f}, { 0.0f,  0.0f,  -1.0f}}, // 7
+
+			// left
+			{{-w, -h, -d},  {0.0f, 0.0f}, {-1.0f,  0.0f,   0.0f}}, // 8
+			{{-w, -h,  d},  {1.0f, 0.0f}, {-1.0f,  0.0f,   0.0f}}, // 9
+			{{-w,  h,  d},  {1.0f, 1.0f}, {-1.0f,  0.0f,   0.0f}}, // 10
+			{{-w,  h, -d},  {0.0f, 1.0f}, {-1.0f,  0.0f,   0.0f}}, // 11
+
+			// right
+			{{ w, -h,  d},  {0.0f, 0.0f}, { 1.0f,  0.0f,   0.0f}}, // 12
+			{{ w, -h, -d},	{1.0f, 0.0f}, { 1.0f,  0.0f,   0.0f}}, // 13
+			{{ w,  h, -d},	{1.0f, 1.0f}, { 1.0f,  0.0f,   0.0f}}, // 14
+			{{ w,  h,  d},  {0.0f, 1.0f}, { 1.0f,  0.0f,   0.0f}}, // 15
+
+			// top
+			{{-w,  h,  d},  {0.0f, 0.0f}, { 0.0f,  1.0f,   0.0f}}, // 16
+			{{ w,  h,  d},  {1.0f, 0.0f}, { 0.0f,  1.0f,   0.0f}}, // 17
+			{{ w,  h, -d},	{1.0f, 1.0f}, { 0.0f,  1.0f,   0.0f}}, // 18
+			{{-w,  h, -d},	{0.0f, 1.0f}, { 0.0f,  1.0f,   0.0f}}, // 19
+
+			// bottom
+			{{ w, -h,  d},  {0.0f, 0.0f}, { 0.0f, -1.0f,   0.0f}}, // 20
+			{{-w, -h,  d},  {1.0f, 0.0f}, { 0.0f, -1.0f,   0.0f}}, // 21
+			{{-w, -h, -d},	{1.0f, 1.0f}, { 0.0f, -1.0f,   0.0f}}, // 22
+			{{ w, -h, -d},	{0.0f, 1.0f}, { 0.0f, -1.0f,   0.0f}}, // 23
+		};
+		box.indices = {
+			0, 1, 2, 0, 2, 3,       // front
+			4, 5, 6, 4, 6, 7,       // back
+			8, 9, 10, 8, 10, 11,    // left
+			12, 13, 14, 12, 14, 15, // right
+			16, 17, 18, 16, 18, 19, // top
+			20, 21, 22, 20, 22, 23  // bottom
+		};
+
+		box.vertexBuffer = ModelLoader::createMeshVertexBuffer(box.vertices);
+		box.indexBuffer = ModelLoader::createMeshIndexBuffer(box.indices);
+
+		box.material = new Material();
+		box.material->ubo.ambient = glm::vec3(0.1f);
+		box.material->ubo.diffuse = glm::vec3(0.8f, 0.2f, 0.6f);
+
+		box.material->createDescriptorSet(TextureLoader::getEmptyTexture());
+
+		box.createDescriptorSet();
+
+		return box;
+	}
+
+	Mesh createPlane(float length, float width)
+	{
+		Mesh plane = {};
+		float l = length / 2.0f;
+		float w = width / 2.0f;
+
+		plane.vertices = {
+			{{-l,  0.0f,  w},  {0.0f, 0.0f}, { 0.0f, 1.0f, 0.0f}},
+			{{ l,  0.0f,  w},  {1.0f, 0.0f}, { 0.0f, 1.0f, 0.0f}},
+			{{ l,  0.0f, -w},  {1.0f, 1.0f}, { 0.0f, 1.0f, 0.0f}},
+			{{-l,  0.0f, -w},  {0.0f, 1.0f}, { 0.0f, 1.0f, 0.0f}}
+		};
+
+		plane.indices = { 0, 1, 2, 0, 2, 3 };
+		plane.vertexBuffer = ModelLoader::createMeshVertexBuffer(plane.vertices);
+		plane.indexBuffer = ModelLoader::createMeshIndexBuffer(plane.indices);
+
+		plane.material = new Material();
+
+		plane.material->createDescriptorSet(TextureLoader::getEmptyTexture());
+
+		plane.createDescriptorSet();
+
+		return plane;
+	}
+
+	Mesh createSphere()
+	{
+		Mesh sphere = {};
+		Mesh* sphereModel = getSphere();
+
+		sphere.vertices = sphereModel->vertices;
+		sphere.indices = sphereModel->indices;
+		sphere.vertexBuffer = ModelLoader::createMeshVertexBuffer(sphere.vertices);
+		sphere.indexBuffer = ModelLoader::createMeshIndexBuffer(sphere.indices);
+
+		sphere.material = new Material();
+		sphere.material->createDescriptorSet(TextureLoader::getEmptyTexture());
+		sphere.createDescriptorSet();
+
+		return sphere;
+	}
+
+	Mesh createTorus()
+	{
+		Mesh torus = {};
+		Mesh* torusModel = getTorus();
+
+		torus.vertices = torusModel->vertices;
+		torus.indices = torusModel->indices;
+		torus.vertexBuffer = ModelLoader::createMeshVertexBuffer(torus.vertices);
+		torus.indexBuffer = ModelLoader::createMeshIndexBuffer(torus.indices);
+		torus.material = new Material();
+		torus.material->createDescriptorSet(TextureLoader::getEmptyTexture());
+		torus.createDescriptorSet();
+
+		return torus;
+	}
+
+	Mesh createCone()
+	{
+		Mesh cone = {};
+		Mesh* coneModel = getCone();
+
+		cone.vertices = coneModel->vertices;
+		cone.indices = coneModel->indices;
+		cone.vertexBuffer = ModelLoader::createMeshVertexBuffer(cone.vertices);
+		cone.indexBuffer = ModelLoader::createMeshIndexBuffer(cone.indices);
+		cone.material = new Material();
+		cone.material->createDescriptorSet(TextureLoader::getEmptyTexture());
+		cone.createDescriptorSet();
+
+		return cone;
+	}
+
+	Mesh createMonkey()
+	{
+		Mesh monkey = {};
+		Mesh* monkeyModel = getMonkey();
+
+		monkey.vertices = monkeyModel->vertices;
+		monkey.indices = monkeyModel->indices;
+		monkey.vertexBuffer = ModelLoader::createMeshVertexBuffer(monkey.vertices);
+		monkey.indexBuffer = ModelLoader::createMeshIndexBuffer(monkey.indices);
+		monkey.material = new Material();
+		monkey.material->createDescriptorSet(TextureLoader::getEmptyTexture());
+		monkey.createDescriptorSet();
+
+		return monkey;
+	}
+
+	Mesh createCylinder()
+	{
+		Mesh cylinder = {};
+		Mesh* cylinderModel = getCylinder();
+
+		cylinder.vertices = cylinderModel->vertices;
+		cylinder.indices = cylinderModel->indices;
+		cylinder.vertexBuffer = ModelLoader::createMeshVertexBuffer(cylinder.vertices);
+		cylinder.indexBuffer = ModelLoader::createMeshIndexBuffer(cylinder.indices);
+		cylinder.material = new Material();
+		cylinder.material->createDescriptorSet(TextureLoader::getEmptyTexture());
+		cylinder.createDescriptorSet();
+
+		return cylinder;
 	}
 }
 

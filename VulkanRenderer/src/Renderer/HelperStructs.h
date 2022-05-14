@@ -198,7 +198,7 @@ struct Material
 
 		float shininess = 0.0f;			   // specular exponent
 		float ior = 0.0f;				   // index of refraction
-		float dissolve = 0.0f;			   // 1 == opaque; 0 == fully transparent 
+		float dissolve = 1.0f;			   // 1 == opaque; 0 == fully transparent 
 		int illum = 0;					   // illumination model
 		float roughness = 0.0f;            // [0, 1] default 0
 		float metallic = 0.0f;             // [0, 1] default 0
@@ -235,6 +235,40 @@ struct Material
 	void createDescriptorSet(Texture* emptyTexture);
 };
 
+enum class ColorType
+{
+	AMBIENT,
+	DIFFUSE,
+	SPECULAR,
+	TRANSMITTANCE,
+	EMISSION
+};
+
+enum class MaterialValueType
+{
+	SHININESS,
+	REFRACTION,
+	DISSOLVE,
+	ROUGHNESS,
+	METALLIC,
+	SHEEN,
+	CC_THICKNESS,
+	CC_ROUGHNESS,
+	ANISOTROPY,
+	ANISOTROPY_ROT
+};
+
+enum class MaterialPresets
+{
+	EMERALD, RUBY, TURQUOISE, JADE, PEARL, OBSIDIAN,
+	BRASS, BRONZE, CHROME, COPPER, GOLD, SILVER,
+	POLISHED_BRONZE, POLISHED_COPPER, POLISHED_GOLD, POLISHED_SILVER,
+	BLACK_PLASTIC, WHITE_PLASTIC,
+	RED_PLASTIC, YELLOW_PLASTIC, GREEN_PLASTIC, CYAN_PLASTIC,
+	BLACK_RUBBER, WHITE_RUBBER,
+	RED_RUBBER, YELLOW_RUBBER, GREEN_RUBBER, CYAN_RUBBER
+};
+
 struct Mesh
 {
 	std::vector<ModelVertex> vertices;
@@ -253,8 +287,13 @@ struct Mesh
 	VkDescriptorPool descriptorPool;
 
 	void createDescriptorSet();
-	void setModelMatrix(glm::mat4 m);
 	void destroyMesh();
+
+	void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false);
+	void setModelMatrix(glm::mat4 m);
+	void setMaterialColorWithValue(ColorType colorType, glm::vec3 color);
+	void setMaterialWithPreset(MaterialPresets preset);
+	void setMaterialValue(MaterialValueType valueType, float value);
 };
 
 struct Model
@@ -263,7 +302,7 @@ struct Model
 		: meshes(modelMeshes){}
 	std::vector<Mesh*> meshes;
 	void destroyModel();
-	void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useTextures = false);
+	void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false);
 };
 
 // hash functions

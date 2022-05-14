@@ -435,6 +435,326 @@ void Mesh::setModelMatrix(glm::mat4 m)
 	memcpy(uniformBuffer.mappedMemory, &meshUBO, sizeof(meshUBO));
 }
 
+void Mesh::setMaterialColorWithValue(ColorType colorType, glm::vec3 color)
+{
+	switch (colorType)
+	{
+	case ColorType::AMBIENT:
+		material->ubo.ambient = color;
+		break;
+
+	case ColorType::DIFFUSE:
+		material->ubo.diffuse = color;
+		break;
+
+	case ColorType::SPECULAR:
+		material->ubo.specular = color;
+		break;
+
+	case ColorType::TRANSMITTANCE:
+		material->ubo.transmittance = color;
+		break;
+
+	case ColorType::EMISSION:
+		material->ubo.emission = color;
+		break;
+
+	default:
+		break;
+	}
+}
+
+void Mesh::setMaterialWithPreset(MaterialPresets preset)
+{
+	switch (preset)
+	{
+#pragma region MINERALS
+	case MaterialPresets::EMERALD:
+		material->ubo.ambient = glm::vec3(0.0215f, 0.1745f, 0.0215f);
+		material->ubo.diffuse = glm::vec3(0.07568f, 0.61424f, 0.07568f);
+		material->ubo.specular = glm::vec3(0.633f, 0.727811f, 0.633f);
+		material->ubo.shininess = 76.8f;
+		material->ubo.dissolve = 0.55f;
+		break;
+
+	case MaterialPresets::RUBY:
+		material->ubo.ambient = glm::vec3(0.1745f, 0.01175f, 0.01175f);
+		material->ubo.diffuse = glm::vec3(0.61424f, 0.04136f, 0.04136f);
+		material->ubo.specular = glm::vec3(0.727811f, 0.626959f, 0.626959f);
+		material->ubo.shininess = 76.8f;
+		material->ubo.dissolve = 0.55f;
+		break;
+
+
+	case MaterialPresets::TURQUOISE:
+		material->ubo.ambient = glm::vec3(0.1f, 0.18725f, 0.1745f);
+		material->ubo.diffuse = glm::vec3(0.396f, 0.74151f, 0.69102f);
+		material->ubo.specular = glm::vec3(0.297254f, 0.30829f, 0.306678f);
+		material->ubo.shininess = 12.8f;
+		material->ubo.dissolve = 0.8f;
+		break;
+
+	case MaterialPresets::JADE:
+		material->ubo.ambient = glm::vec3(0.135f, 0.2225f, 0.1575f);
+		material->ubo.diffuse = glm::vec3(0.54f, 0.89f, 0.63f);
+		material->ubo.specular = glm::vec3(0.316228f, 0.316228f, 0.316228f);
+		material->ubo.shininess = 12.8f;
+		material->ubo.dissolve = 0.95f;
+		break;
+
+	case MaterialPresets::PEARL:
+		material->ubo.ambient = glm::vec3(0.25f, 0.20725f, 0.20725f);
+		material->ubo.diffuse = glm::vec3(1.0f, 0.829f, 0.829f);
+		material->ubo.specular = glm::vec3(0.296648f, 0.296648f, 0.296648f);
+		material->ubo.shininess = 11.264f;
+		material->ubo.dissolve = 0.922f;
+		break;
+
+	case MaterialPresets::OBSIDIAN:
+		material->ubo.ambient = glm::vec3(0.05375f, 0.05f, 0.06625f);
+		material->ubo.diffuse = glm::vec3(0.18275f, 0.17f, 0.22525f);
+		material->ubo.specular = glm::vec3(0.332741f, 0.328634f, 0.346435f);
+		material->ubo.shininess = 38.4f;
+		material->ubo.dissolve = 0.82f;
+		break;
+#pragma endregion
+
+#pragma region METALS
+	case MaterialPresets::BRASS:
+		material->ubo.ambient = glm::vec3(0.329412f, 0.223529f, 0.027451f);
+		material->ubo.diffuse = glm::vec3(0.780392f, 0.568627f, 0.113725f);
+		material->ubo.specular = glm::vec3(0.992157f, 0.941176f, 0.807843f);
+		material->ubo.shininess = 27.8974f;
+		break;
+
+	case MaterialPresets::BRONZE:
+		material->ubo.ambient = glm::vec3(0.2125f, 0.1275f, 0.054f);
+		material->ubo.diffuse = glm::vec3(0.714f, 0.4284f, 0.18144f);
+		material->ubo.specular = glm::vec3(0.393548f, 0.271906f, 0.166721f);
+		material->ubo.shininess = 25.6f;
+		break;
+
+	case MaterialPresets::POLISHED_BRONZE:
+		material->ubo.ambient = glm::vec3(0.25f, 0.148f, 0.06475f);
+		material->ubo.diffuse = glm::vec3(0.4f, 0.2368f, 0.1036f);
+		material->ubo.specular = glm::vec3(0.774597f, 0.458561f, 0.200621f);
+		material->ubo.shininess = 76.8f;
+		break;
+
+	case MaterialPresets::CHROME:
+		material->ubo.ambient = glm::vec3(0.25f, 0.25f, 0.25f);
+		material->ubo.diffuse = glm::vec3(0.4f, 0.4f, 0.4f);
+		material->ubo.specular = glm::vec3(0.774597f, 0.774597f, 0.774597f);
+		material->ubo.shininess = 76.8f;
+		break;
+
+	case MaterialPresets::COPPER:
+		material->ubo.ambient = glm::vec3(0.19125f, 0.0735f, 0.0225f);
+		material->ubo.diffuse = glm::vec3(0.7038f, 0.27048f, 0.0828f);
+		material->ubo.specular = glm::vec3(0.256777f, 0.137622f, 0.086014f);
+		material->ubo.shininess = 12.8f;
+		break;
+
+	case MaterialPresets::POLISHED_COPPER:
+		material->ubo.ambient = glm::vec3(0.2295f, 0.08825f, 0.0275f);
+		material->ubo.diffuse = glm::vec3(0.5508f, 0.2118f, 0.066f);
+		material->ubo.specular = glm::vec3(0.580594f, 0.223257f, 0.0695701f);
+		material->ubo.shininess = 51.2f;
+		break;
+
+	case MaterialPresets::GOLD:
+		material->ubo.ambient = glm::vec3(0.24725f, 0.1995f, 0.0745f);
+		material->ubo.diffuse = glm::vec3(0.75164f, 0.60648f, 0.22648f);
+		material->ubo.specular = glm::vec3(0.628281f, 0.555802f, 0.366065f);
+		material->ubo.shininess = 51.2f;
+		break;
+
+	case MaterialPresets::POLISHED_GOLD:
+		material->ubo.ambient = glm::vec3(0.24725f, 0.2245f, 0.0645f);
+		material->ubo.diffuse = glm::vec3(0.34615f, 0.3143f, 0.0903f);
+		material->ubo.specular = glm::vec3(0.797357f, 0.723991f, 0.208006f);
+		material->ubo.shininess = 83.2f;
+		break;
+
+	case MaterialPresets::SILVER:
+		material->ubo.ambient = glm::vec3(0.19225f, 0.19225f, 0.19225f);
+		material->ubo.diffuse = glm::vec3(0.50754f, 0.50754f, 0.50754f);
+		material->ubo.specular = glm::vec3(0.508273f, 0.508273f, 0.508273f);
+		material->ubo.shininess = 51.2f;
+		break;
+
+	case MaterialPresets::POLISHED_SILVER:
+		material->ubo.ambient = glm::vec3(0.23125f, 0.23125f, 0.23125f);
+		material->ubo.diffuse = glm::vec3(0.2775f, 0.2775f, 0.2775f);
+		material->ubo.specular = glm::vec3(0.773911f, 0.773911f, 0.773911f);
+		material->ubo.shininess = 89.6f;
+		break;
+#pragma endregion
+
+#pragma region PLASTICS
+	case MaterialPresets::BLACK_PLASTIC:
+		material->ubo.ambient = glm::vec3(0.0f, 0.0f, 0.0f);
+		material->ubo.diffuse = glm::vec3(0.01f, 0.01f, 0.01f);
+		material->ubo.specular = glm::vec3(0.50f, 0.50f, 0.50f);
+		material->ubo.shininess = 32.0f;
+		break;
+
+	case MaterialPresets::WHITE_PLASTIC:
+		material->ubo.ambient = glm::vec3(0.0f, 0.0f, 0.0f);
+		material->ubo.diffuse = glm::vec3(0.55f, 0.55f, 0.55f);
+		material->ubo.specular = glm::vec3(0.70f, 0.70f, 0.70f);
+		material->ubo.shininess = 32.0f;
+		break;
+
+	case MaterialPresets::RED_PLASTIC:
+		material->ubo.ambient = glm::vec3(0.0f, 0.0f, 0.0f);
+		material->ubo.diffuse = glm::vec3(0.5f, 0.0f, 0.0f);
+		material->ubo.specular = glm::vec3(0.7f, 0.6f, 0.6f);
+		material->ubo.shininess = 32.0f;
+		break;
+
+	case MaterialPresets::YELLOW_PLASTIC:
+		material->ubo.ambient = glm::vec3(0.0f, 0.0f, 0.0f);
+		material->ubo.diffuse = glm::vec3(0.5f, 0.5f, 0.0f);
+		material->ubo.specular = glm::vec3(0.60f, 0.60f, 0.50f);
+		material->ubo.shininess = 32.0f;
+		break;
+
+	case MaterialPresets::GREEN_PLASTIC:
+		material->ubo.ambient = glm::vec3(0.0f, 0.0f, 0.0f);
+		material->ubo.diffuse = glm::vec3(0.1f, 0.35f, 0.1f);
+		material->ubo.specular = glm::vec3(0.45f, 0.55f, 0.45f);
+		material->ubo.shininess = 32.0f;
+		break;
+
+	case MaterialPresets::CYAN_PLASTIC:
+		material->ubo.ambient = glm::vec3(0.0f, 0.1f, 0.06f);
+		material->ubo.diffuse = glm::vec3(0.0f, 0.50980392f, 0.50980392f);
+		material->ubo.specular = glm::vec3(0.50196078f, 0.50196078f, 0.50196078f);
+		material->ubo.shininess = 32.0f;
+		break;
+#pragma endregion
+
+#pragma region RUBBER
+	case MaterialPresets::BLACK_RUBBER:
+		material->ubo.ambient = glm::vec3(0.02f, 0.02f, 0.02f);
+		material->ubo.diffuse = glm::vec3(0.01f, 0.01f, 0.01f);
+		material->ubo.specular = glm::vec3(0.4f, 0.4f, 0.4f);
+		material->ubo.shininess = 10.0f;
+		break;
+
+	case MaterialPresets::WHITE_RUBBER:
+		material->ubo.ambient = glm::vec3(0.05f, 0.05f, 0.05f);
+		material->ubo.diffuse = glm::vec3(0.5f, 0.5f, 0.5f);
+		material->ubo.specular = glm::vec3(0.7f, 0.7f, 0.7f);
+		material->ubo.shininess = 10.0f;
+		break;
+
+	case MaterialPresets::RED_RUBBER:
+		material->ubo.ambient = glm::vec3(0.05f, 0.0f, 0.0f);
+		material->ubo.diffuse = glm::vec3(0.5f, 0.4f, 0.4f);
+		material->ubo.specular = glm::vec3(0.7f, 0.04f, 0.04f);
+		material->ubo.shininess = 10.0f;
+		break;
+
+	case MaterialPresets::YELLOW_RUBBER:
+		material->ubo.ambient = glm::vec3(0.329412f, 0.223529f, 0.027451f);
+		material->ubo.diffuse = glm::vec3(0.780392f, 0.568627f, 0.113725f);
+		material->ubo.specular = glm::vec3(0.992157f, 0.941176f, 0.807843f);
+		material->ubo.shininess = 10.0f;
+		break;
+
+	case MaterialPresets::GREEN_RUBBER:
+		material->ubo.ambient = glm::vec3(0.0f, 0.05f, 0.0f);
+		material->ubo.diffuse = glm::vec3(0.4f, 0.5f, 0.4f);
+		material->ubo.specular = glm::vec3(0.04f, 0.7f, 0.04f);
+		material->ubo.shininess = 10.0f;
+		break;
+
+	case MaterialPresets::CYAN_RUBBER:
+		material->ubo.ambient = glm::vec3(0.0f, 0.05f, 0.05f);
+		material->ubo.diffuse = glm::vec3(0.4f, 0.5f, 0.5f);
+		material->ubo.specular = glm::vec3(0.04f, 0.7f, 0.7f);
+		material->ubo.shininess = 10.0f;
+		break;
+#pragma endregion
+
+	default:
+		break;
+	}
+
+	memcpy(material->uniformBuffer.mappedMemory, &material->ubo, sizeof(material->ubo));
+}
+
+void Mesh::setMaterialValue(MaterialValueType valueType, float value)
+{
+	switch (valueType)
+	{
+	case MaterialValueType::SHININESS:
+		material->ubo.shininess = value;
+		break;
+
+	case MaterialValueType::REFRACTION:
+		material->ubo.ior = value;
+		break;
+
+	case MaterialValueType::DISSOLVE:
+		material->ubo.dissolve = value;
+		break;
+
+	case MaterialValueType::ROUGHNESS:
+		material->ubo.roughness = value;
+		break;
+
+	case MaterialValueType::METALLIC:
+		material->ubo.metallic = value;
+		break;
+
+	case MaterialValueType::SHEEN:
+		material->ubo.sheen = value;
+		break;
+
+	case MaterialValueType::CC_THICKNESS:
+		material->ubo.clearcoat_thickness = value;
+		break;
+
+	case MaterialValueType::CC_ROUGHNESS:
+		material->ubo.clearcoat_roughness = value;
+		break;
+
+	case MaterialValueType::ANISOTROPY:
+		material->ubo.anisotropy = value;
+		break;
+
+	case MaterialValueType::ANISOTROPY_ROT:
+		material->ubo.anisotropy_rotation = value;
+		break;
+
+	default:
+		break;
+	}
+}
+
+void Mesh::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial)
+{
+	static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	VkDeviceSize offsets[] = { 0 };
+
+	vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer.buffer, offsets);
+	vkCmdBindIndexBuffer(commandBuffer, indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+
+	// bind model uniform buffer
+	vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+		1, 1, &descriptorSet, 0, nullptr);
+
+	if (useMaterial)
+	{
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
+			2, 1, &material->descriptorSet, 0, nullptr);
+	}
+
+	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+}
 // mesh
 void Mesh::destroyMesh()
 {
@@ -465,27 +785,11 @@ void Model::destroyModel()
 	}
 }
 
-void Model::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useTextures)
+void Model::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial)
 {
-	static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-	VkDeviceSize offsets[] = { 0 };
-
 	for (size_t i = 0; i < meshes.size(); i++)
 	{
-		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &meshes[i]->vertexBuffer.buffer, offsets);
-		vkCmdBindIndexBuffer(commandBuffer, meshes[i]->indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-		
-		// bind model uniform buffer
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-			1, 1, &meshes[i]->descriptorSet, 0, nullptr);
-
-		if (useTextures)
-		{
-			vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout,
-				2, 1, &meshes[i]->material->descriptorSet, 0, nullptr);
-		}
-
-		vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(meshes[i]->indices.size()), 1, 0, 0, 0);
+		meshes[i]->draw(commandBuffer, pipelineLayout, useMaterial);
 	}
 }
 
