@@ -1,9 +1,9 @@
 #version 460 core
 
-layout(location = 0) in vec3 inLightPos;
-layout(location = 1) in vec3 inViewPos;
-layout(location = 2) in vec3 inFragPos;
-layout(location = 3) in vec3 inNormal;
+layout(location = 0) in vec3 inWorldNormal;
+layout(location = 1) in vec3 inVertPos;
+layout(location = 2) in vec3 inLightPos;
+layout(location = 3) in vec3 inViewPos;
 
 layout(location = 0) out vec4 fragColor;
 
@@ -44,12 +44,12 @@ vec3 blinnPhong(vec3 lightDir, vec3 viewDir, vec3 normal, vec3 diffuseColor, vec
 
 void main()
 {
-	vec3 lightDir = normalize(-inLightPos);
-	vec3 viewDir = normalize(inViewPos - inFragPos);
-	vec3 normal = normalize(inNormal);
+	vec3 lightDir = normalize(inLightPos - inVertPos);
+	vec3 viewDir = normalize(inViewPos - inVertPos);
+	vec3 normal = normalize(inWorldNormal);
 
 	vec3 radiance = mat.ambient;
-	float irradiance = max(dot(lightDir, normal), 0.0); // * lightIntensity?
+	float irradiance = max(dot(lightDir, normal), 0.0);
 
 	if (irradiance > 0.0)
 	{
@@ -57,6 +57,5 @@ void main()
 		radiance += brdf * irradiance * lightColor;
 	}
 
-	//radiance = pow(radiance, vec3(1.0 / 2.2)); // gamma correction
 	fragColor = vec4(radiance, 1.0);
 }

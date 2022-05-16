@@ -431,7 +431,7 @@ void Mesh::createDescriptorSet()
 void Mesh::setModelMatrix(glm::mat4 m)
 {
 	meshUBO.model = m;
-
+	meshUBO.normal = glm::transpose(glm::inverse(meshUBO.model));
 	memcpy(uniformBuffer.mappedMemory, &meshUBO, sizeof(meshUBO));
 }
 

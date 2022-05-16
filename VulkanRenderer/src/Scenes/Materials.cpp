@@ -650,10 +650,10 @@ void MaterialScene::CreateUniforms(const VulkanSwapChain& swapChain)
 
 	uboScene.proj = glm::perspective(glm::radians(camera->GetFOV()), aspectRatio, 0.1f, 1000.0f);
 	uboScene.proj[1][1] *= -1;
-	uboScene.view = camera->GetViewMatrix();
+	glm::mat4 cameraView = camera->GetViewMatrix();
+	uboScene.view = cameraView;
 	uboScene.lightPos = light.getLightPos();
 	uboScene.viewPos = camera->GetCameraPosition();
-	
 }
 
 void MaterialScene::UpdateUniforms(uint32_t index)
@@ -682,7 +682,8 @@ void MaterialScene::UpdateUniforms(uint32_t index)
 	lightPos.y = 0.5f;
 	light.setLightPos(lightPos);
 
-	uboScene.view = camera->GetViewMatrix();
+	glm::mat4 cameraView = camera->GetViewMatrix();
+	uboScene.view = cameraView;
 	uboScene.lightPos = lightPos;
 	uboScene.viewPos = camera->GetCameraPosition();
 
