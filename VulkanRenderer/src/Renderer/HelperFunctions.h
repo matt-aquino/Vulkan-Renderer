@@ -21,6 +21,22 @@
 
 namespace HelperFunctions
 {
+	namespace initializers
+	{
+		VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo(VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VkPipelineInputAssemblyStateCreateFlags flags = 0, VkBool32 restart = VK_FALSE);
+		VkPipelineVertexInputStateCreateInfo   pipelineVertexInputStateCreateInfo(int numBindingDescriptions, VkVertexInputBindingDescription& bindingDescriptions, int numAttributeDescriptions, VkVertexInputAttributeDescription* attributeDescriptions);
+		VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo(VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL, VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT, VkFrontFace front = VK_FRONT_FACE_COUNTER_CLOCKWISE);
+		VkPipelineColorBlendStateCreateInfo    pipelineColorBlendStateCreateInfo(int numAttachments, VkPipelineColorBlendAttachmentState blendAttachState);
+		VkPipelineDepthStencilStateCreateInfo  pipelineDepthStencilStateCreateInfo(VkBool32 enableDepthTest = VK_TRUE, VkBool32 enableDepthWrite = VK_TRUE, VkCompareOp compareOp = VK_COMPARE_OP_LESS);
+		VkPipelineViewportStateCreateInfo	   pipelineViewportStateCreateInfo(int viewportCount, int scissorCount, VkPipelineViewportStateCreateFlags flags);
+		VkPipelineMultisampleStateCreateInfo   pipelineMultisampleStateCreateInfo(VkSampleCountFlagBits flags = VK_SAMPLE_COUNT_1_BIT);
+		VkPipelineDynamicStateCreateInfo	   pipelineDynamicStateCreateInfo(int numDynamicStates, VkDynamicState* dynamicStates);
+		VkPipelineShaderStageCreateInfo		   pipelineShaderStageCreateInfo(VkShaderStageFlagBits stageFlags, VkShaderModule shaderModule);
+		VkPipelineLayoutCreateInfo			   pipelineLayoutCreateInfo(int numSetLayouts, VkDescriptorSetLayout* setLayouts, int numPushRanges = 0, VkPushConstantRange* pushRange = nullptr);
+
+		VkWriteDescriptorSet writeDescriptorSet(VkDescriptorSet& dstSet, const VkDescriptorBufferInfo* bufferInfo, uint32_t dstBinding = 0, VkDescriptorType bufferType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, const VkBufferView* bufferView = nullptr);
+		VkWriteDescriptorSet writeDescriptorSet(VkDescriptorSet& dstSet, const VkDescriptorImageInfo* imageInfo, uint32_t dstBinding = 0);
+	}
 	// commands
 	VkCommandBuffer beginSingleTimeCommands(const VkCommandPool& commandPool);
 	void endSingleTimeCommands(const VkCommandPool& commandPool);
@@ -31,11 +47,11 @@ namespace HelperFunctions
 	void copyBufferToImage(const VkCommandPool& commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t depth);
 
 	// images
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, const VkCommandPool& commandPool);
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, const VkCommandPool& commandPool, VkPipelineStageFlags srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT);
 	void createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, 
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& memory);
 	void createImageView(VkImage& image, VkImageView& imageView, VkFormat format, VkImageAspectFlags aspectFlags, VkImageViewType viewType);
-	void createSampler(VkSampler& sampler, VkFilter filter, VkSamplerAddressMode addrMode, VkBool32 enableAnisotropy, float maxAnisotropy, float minLod, float maxLod);
+	void createSampler(VkSampler& sampler, VkFilter filter, VkSamplerAddressMode addrMode, VkBool32 enableAnisotropy = VK_FALSE, float maxAnisotropy = 0.0f, float minLod = 0.0f, float maxLod = 1.0f, VkBorderColor borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE);
 
 	// pipeline
 	VkShaderModule CreateShaderModules(const std::vector<char>& code);

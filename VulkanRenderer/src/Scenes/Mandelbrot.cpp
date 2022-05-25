@@ -633,7 +633,7 @@ void Mandelbrot::HandleKeyboardInput(const uint8_t* keystates, float dt)
 	ubo.threshold = std::clamp(ubo.threshold, 1024.0f, 100000.0f);
 }
 
-void Mandelbrot::HandleMouseInput(const int x, const int y)
+void Mandelbrot::HandleMouseInput(uint32_t buttons, const int x, const int y)
 {
 
 }

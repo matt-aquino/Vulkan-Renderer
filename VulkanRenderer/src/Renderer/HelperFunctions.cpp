@@ -1,14 +1,126 @@
 #include "HelperFunctions.h"
 #include <fstream>
 #include "HelperStructs.h"
-
+#include <vulkan/vulkan.h>
 
 namespace HelperFunctions
 {
+	namespace initializers
+	{
+		VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo(VkPrimitiveTopology topology, VkPipelineInputAssemblyStateCreateFlags flags, VkBool32 restart)
+		{
+			VkPipelineInputAssemblyStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
+			createInfo.flags = flags;
+			createInfo.topology = topology;
+			createInfo.primitiveRestartEnable = restart;
+			return createInfo;
+		}
+
+		VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo(int numBindingDescriptions, VkVertexInputBindingDescription& bindingDescriptions, int numAttributeDescriptions, VkVertexInputAttributeDescription* attributeDescriptions)
+		{
+			VkPipelineVertexInputStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+			createInfo.vertexBindingDescriptionCount = numBindingDescriptions;
+			createInfo.pVertexBindingDescriptions = &bindingDescriptions;
+			createInfo.vertexAttributeDescriptionCount = numAttributeDescriptions;
+			createInfo.pVertexAttributeDescriptions = attributeDescriptions;
+			return createInfo;
+		}
+
+		VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo(VkPolygonMode polygonMode, VkCullModeFlags cullMode, VkFrontFace front)
+		{
+			VkPipelineRasterizationStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
+			createInfo.polygonMode = polygonMode;
+			createInfo.cullMode = cullMode;
+			createInfo.frontFace = front;
+			return createInfo;
+		}
+
+		VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo(int numAttachments, VkPipelineColorBlendAttachmentState blendAttachState)
+		{
+			VkPipelineColorBlendStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+			createInfo.attachmentCount = numAttachments;
+			createInfo.pAttachments = &blendAttachState;
+			return createInfo;
+		}
+
+		VkPipelineDepthStencilStateCreateInfo pipelineDepthStencilStateCreateInfo(VkBool32 enableDepthTest, VkBool32 enableDepthWrite, VkCompareOp compareOp)
+		{
+			VkPipelineDepthStencilStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
+			createInfo.depthTestEnable = enableDepthTest;
+			createInfo.depthWriteEnable = enableDepthWrite;
+			createInfo.depthCompareOp = compareOp;
+			return createInfo;
+		}
+
+		VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo(int viewportCount, int scissorCount, VkPipelineViewportStateCreateFlags flags)
+		{
+			VkPipelineViewportStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
+			createInfo.viewportCount = viewportCount;
+			createInfo.scissorCount = scissorCount;
+			createInfo.flags = flags;
+			return createInfo;
+		}
+
+		VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo(VkSampleCountFlagBits flags)
+		{
+			VkPipelineMultisampleStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+			createInfo.rasterizationSamples = flags;
+			return createInfo;
+		}
+
+		VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo(int numDynamicStates, VkDynamicState* dynamicStates)
+		{
+			VkPipelineDynamicStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
+			createInfo.dynamicStateCount = numDynamicStates;
+			createInfo.pDynamicStates = dynamicStates;
+			return createInfo;
+		}
+
+		VkPipelineShaderStageCreateInfo pipelineShaderStageCreateInfo(VkShaderStageFlagBits stageFlags, VkShaderModule shaderModule)
+		{
+			VkPipelineShaderStageCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+			createInfo.stage = stageFlags;
+			createInfo.module = shaderModule;
+			createInfo.pName = "main";
+			return createInfo;
+		}
+
+		VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo(int numSetLayouts, VkDescriptorSetLayout* setLayouts, int numPushRanges, VkPushConstantRange* pushRange)
+		{
+			VkPipelineLayoutCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+			createInfo.pushConstantRangeCount = numPushRanges;
+			createInfo.pPushConstantRanges = pushRange;
+			createInfo.setLayoutCount = numSetLayouts;
+			createInfo.pSetLayouts = setLayouts;
+			return createInfo;
+		}
+
+		VkWriteDescriptorSet writeDescriptorSet(VkDescriptorSet& dstSet, const VkDescriptorBufferInfo* bufferInfo, uint32_t dstBinding, VkDescriptorType bufferType, const VkBufferView* bufferView)
+		{
+			VkWriteDescriptorSet writeDescriptor = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+			writeDescriptor.descriptorCount = 1;
+			writeDescriptor.descriptorType = bufferType;
+			writeDescriptor.dstSet = dstSet;
+			writeDescriptor.dstBinding = dstBinding;
+			writeDescriptor.pBufferInfo = bufferInfo;
+			writeDescriptor.pTexelBufferView = bufferView;
+			return writeDescriptor;
+		}
+		VkWriteDescriptorSet writeDescriptorSet(VkDescriptorSet& dstSet, const VkDescriptorImageInfo* imageInfo, uint32_t dstBinding)
+		{
+			VkWriteDescriptorSet writeDescriptor = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+			writeDescriptor.descriptorCount = 1;
+			writeDescriptor.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			writeDescriptor.dstSet = dstSet;
+			writeDescriptor.dstBinding = dstBinding;
+			writeDescriptor.pImageInfo = imageInfo;
+			return writeDescriptor;
+		}
+	}
+
 	VkCommandBuffer beginSingleTimeCommands(const VkCommandPool& commandPool)
 	{
-		VkCommandBufferAllocateInfo allocInfo{};
-		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		VkCommandBufferAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
 		allocInfo.commandBufferCount = 1;
 		allocInfo.commandPool = commandPool;
 		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -16,8 +128,7 @@ namespace HelperFunctions
 		VkCommandBuffer commandBuffer;
 		vkAllocateCommandBuffers(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &allocInfo, &commandBuffer);
 
-		VkCommandBufferBeginInfo beginInfo{};
-		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		VkCommandBufferBeginInfo beginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
 		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
 		vkBeginCommandBuffer(commandBuffer, &beginInfo);
@@ -28,8 +139,7 @@ namespace HelperFunctions
 	{
 		vkEndCommandBuffer(cmdBuffer);
 
-		VkSubmitInfo submitInfo{};
-		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
 		submitInfo.commandBufferCount = 1;
 		submitInfo.pCommandBuffers = &cmdBuffer;
 
@@ -42,8 +152,7 @@ namespace HelperFunctions
 	{
 		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
-		VkBufferCreateInfo bufferInfo = {};
-		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		VkBufferCreateInfo bufferInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 		bufferInfo.size = size;
 		bufferInfo.usage = usage;
 		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE; // buffers can be shared between queue families just like images
@@ -68,8 +177,7 @@ namespace HelperFunctions
 			}
 		}
 
-		VkMemoryAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		VkMemoryAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
 		allocInfo.allocationSize = memRequirements.size;
 		allocInfo.memoryTypeIndex = typeIndex;
 
@@ -118,8 +226,7 @@ namespace HelperFunctions
 
 	VkShaderModule CreateShaderModules(const std::vector<char>& code)
 	{
-		VkShaderModuleCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		VkShaderModuleCreateInfo createInfo = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
 		createInfo.codeSize = code.size();
 		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
 
@@ -130,7 +237,7 @@ namespace HelperFunctions
 		return shaderModule;
 	}
 
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, const VkCommandPool& commandPool)
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, const VkCommandPool& commandPool, VkPipelineStageFlags srcStageFlags)
 	{
 		VulkanDevice* vkDevice = VulkanDevice::GetVulkanDevice();
 		VkDevice device = vkDevice->GetLogicalDevice();
@@ -138,8 +245,7 @@ namespace HelperFunctions
 
 		VkCommandBuffer commandBuffer = beginSingleTimeCommands(commandPool);
 
-		VkImageMemoryBarrier barrier = {};
-		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
 		barrier.oldLayout = oldLayout;
 		barrier.newLayout = newLayout;
 		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -157,7 +263,7 @@ namespace HelperFunctions
 		{
 			barrier.srcAccessMask = 0;
 			barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-			srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			srcStage = srcStageFlags;
 			dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 		}
 
@@ -182,12 +288,11 @@ namespace HelperFunctions
 		static VkPhysicalDevice physical = VulkanDevice::GetVulkanDevice()->GetPhysicalDevice();
 		static VkDevice logical = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
-		VkImageCreateInfo imageInfo = {};
-		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
 		imageInfo.imageType = imageType;
 		imageInfo.extent.width = width;
 		imageInfo.extent.height = height;
-		imageInfo.extent.depth = 1;
+		imageInfo.extent.depth = depth;
 		imageInfo.mipLevels = 1;
 		imageInfo.arrayLayers = 1;
 		imageInfo.format = format;
@@ -225,7 +330,8 @@ namespace HelperFunctions
 		if (vkAllocateMemory(logical, &allocInfo, nullptr, &memory) != VK_SUCCESS)
 			throw std::runtime_error("failed to allocate image memory");
 
-		vkBindImageMemory(logical, image, memory, 0);
+		if (vkBindImageMemory(logical, image, memory, 0) != VK_SUCCESS)
+			throw std::runtime_error("Failed to bind image memory");
 
 	}
 
@@ -233,8 +339,7 @@ namespace HelperFunctions
 	{
 		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
-		VkImageViewCreateInfo viewInfo{};
-		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		VkImageViewCreateInfo viewInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 		viewInfo.image = image;
 		viewInfo.viewType = viewType;
 		viewInfo.format = format;
@@ -248,12 +353,11 @@ namespace HelperFunctions
 			throw std::runtime_error("Failed to create image view");
 	}
 
-	void createSampler(VkSampler& sampler, VkFilter filter, VkSamplerAddressMode addrMode, VkBool32 enableAnisotropy, float maxAnisotropy, float minLod, float maxLod)
+	void createSampler(VkSampler& sampler, VkFilter filter, VkSamplerAddressMode addrMode, VkBool32 enableAnisotropy, float maxAnisotropy, float minLod, float maxLod, VkBorderColor borderColor)
 	{
 		static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
-		VkSamplerCreateInfo samplerInfo{};
-		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		VkSamplerCreateInfo samplerInfo = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
 		samplerInfo.magFilter = filter;
 		samplerInfo.minFilter = filter;
 		samplerInfo.addressModeU = addrMode;
@@ -261,7 +365,7 @@ namespace HelperFunctions
 		samplerInfo.addressModeW = addrMode;
 		samplerInfo.anisotropyEnable = enableAnisotropy;
 		samplerInfo.maxAnisotropy = maxAnisotropy;
-		samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+		samplerInfo.borderColor = borderColor;
 		samplerInfo.unnormalizedCoordinates = VK_FALSE;
 		samplerInfo.compareEnable = VK_FALSE;
 		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;

@@ -50,7 +50,15 @@ struct VulkanBuffer
 {
 	VkBuffer buffer;
 	VkDeviceMemory bufferMemory;
-	void* mappedMemory; // idea taken from Sascha Willem. removes repeated VkMapMemory/VkUnmapMemory calls
+	void* mappedMemory = nullptr; // idea taken from Sascha Willem. simplifies repeated VkMapMemory/VkUnmapMemory calls
+	bool isMapped = false;
+	VkDeviceSize bufferSize = 0;
+	VkDeviceSize bufferAlignment = 0;
+
+	void map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
+	void unmap();
+	void destroy();
+	void flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
 };
 
 struct VulkanGraphicsPipeline
@@ -136,6 +144,19 @@ struct ModelVertex
 	bool operator==(const ModelVertex& other) const;
 };
 
+// vertex structure for ImGui fonts
+struct FontVertex
+{
+	alignas(8)glm::vec2 position;
+	alignas(8)glm::vec2 texcoord;
+	glm::vec4 color;
+
+	static VkVertexInputBindingDescription getBindingDescription();
+	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();
+
+	bool operator==(const FontVertex& other) const;
+};
+
 struct Particle
 {
 	alignas(16)glm::vec3 position;
@@ -192,11 +213,11 @@ struct Material
 	{
 		alignas(16)glm::vec3 ambient = glm::vec3(0.1f);
 		alignas(16)glm::vec3 diffuse = glm::vec3(0.5f);
-		alignas(16)glm::vec3 specular = glm::vec3(0.0f);
+		alignas(16)glm::vec3 specular = glm::vec3(1.0f);
 		alignas(16)glm::vec3 transmittance = glm::vec3(0.0f);
 		alignas(16)glm::vec3 emission = glm::vec3(0.0f);
 
-		float shininess = 0.0f;			   // specular exponent
+		float shininess = 1.0f;			   // specular exponent
 		float ior = 0.0f;				   // index of refraction
 		float dissolve = 1.0f;			   // 1 == opaque; 0 == fully transparent 
 		int illum = 0;					   // illumination model

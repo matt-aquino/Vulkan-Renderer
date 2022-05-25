@@ -329,7 +329,7 @@ void HelloWorldTriangle::HandleKeyboardInput(const uint8_t* keystates, float dt)
 		camera->HandleInput(KeyboardInputs::UP, dt);
 }
 
-void HelloWorldTriangle::HandleMouseInput(const int x, const int y)
+void HelloWorldTriangle::HandleMouseInput(uint32_t buttons, const int x, const int y)
 {
 	static float deltaX = 0.0f;
 	static float deltaY = 0.0f;

@@ -232,7 +232,7 @@ void ModeledObject::HandleKeyboardInput(const uint8_t* keystates, float dt)
 		camera->HandleInput(KeyboardInputs::UP, dt);
 }
 
-void ModeledObject::HandleMouseInput(const int x, const int y)
+void ModeledObject::HandleMouseInput(uint32_t buttons, const int x, const int y)
 {
 	static float deltaX = 0.0f;
 	static float deltaY = 0.0f;

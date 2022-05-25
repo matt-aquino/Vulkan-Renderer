@@ -2,6 +2,52 @@
 
 // pipelines
 
+void VulkanBuffer::map(VkDeviceSize size, VkDeviceSize offset)
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	vkMapMemory(device, bufferMemory, offset, size, 0, &mappedMemory);
+	isMapped = true;
+}
+
+void VulkanBuffer::unmap()
+{
+	if (isMapped)
+	{
+		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+		vkUnmapMemory(device, bufferMemory);
+		mappedMemory = nullptr;
+		isMapped = false;
+	}
+}
+
+void VulkanBuffer::destroy()
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	if (buffer != VK_NULL_HANDLE)
+	{
+		if (isMapped)
+		{
+			vkUnmapMemory(device, bufferMemory);
+			mappedMemory = nullptr;
+		}
+		
+		vkDestroyBuffer(device, buffer, nullptr);
+		vkFreeMemory(device, bufferMemory, nullptr);
+
+	}
+}
+
+void VulkanBuffer::flush(VkDeviceSize size, VkDeviceSize offset)
+{
+	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	VkMappedMemoryRange mappedRange = {};
+	mappedRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+	mappedRange.memory = bufferMemory;
+	mappedRange.offset = offset;
+	mappedRange.size = size;
+	vkFlushMappedMemoryRanges(device, 1, &mappedRange);
+}
+
 void VulkanGraphicsPipeline::destroyGraphicsPipeline(const VkDevice& device)
 {
 	for (VkFramebuffer fb : framebuffers)
@@ -131,6 +177,43 @@ bool ModelVertex::operator==(const ModelVertex& other) const
 		texcoord == other.texcoord && normal == other.normal;
 }
 
+VkVertexInputBindingDescription FontVertex::getBindingDescription()
+{
+	VkVertexInputBindingDescription bindDesc = {};
+	bindDesc.binding = 0;
+	bindDesc.stride = sizeof(FontVertex);
+	bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	return bindDesc;
+}
+
+std::array<VkVertexInputAttributeDescription, 3> FontVertex::getAttributeDescriptions()
+{
+	std::array<VkVertexInputAttributeDescription, 3> attrDesc{};
+	attrDesc[0].binding = 0;
+	attrDesc[0].location = 0; 
+	attrDesc[0].format = VK_FORMAT_R32G32_SFLOAT; 
+	attrDesc[0].offset = offsetof(FontVertex, position);
+
+	attrDesc[1].binding = 0;
+	attrDesc[1].location = 1;
+	attrDesc[1].format = VK_FORMAT_R32G32_SFLOAT;
+	attrDesc[1].offset = offsetof(FontVertex, texcoord);
+	
+	attrDesc[2].binding = 0;
+	attrDesc[2].location = 2;
+	attrDesc[2].format = VK_FORMAT_R8G8B8A8_UNORM;
+	attrDesc[2].offset = offsetof(FontVertex, color);
+
+	return attrDesc;
+}
+
+bool FontVertex::operator==(const FontVertex& other) const
+{
+	return position == other.position &&
+		texcoord == other.texcoord && color == other.color;
+}
+
 
 // textures
 Texture::Texture()
@@ -139,7 +222,7 @@ Texture::Texture()
 	image = VK_NULL_HANDLE;
 	imageView = VK_NULL_HANDLE;
 	imageMemory = VK_NULL_HANDLE;
-	HelperFunctions::createSampler(sampler, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, VK_TRUE, 4.0f, 0.0f, 1.0f);
+	sampler = VK_NULL_HANDLE;
 	textureDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	textureDescriptor.imageView = VK_NULL_HANDLE;
 	textureDescriptor.sampler = sampler;
@@ -178,8 +261,8 @@ void Texture::copyImageData(const Texture* texture)
 	image = texture->image;
 	imageView = texture->imageView;
 	imageMemory = texture->imageMemory;
+	sampler = texture->sampler; 
 	textureDescriptor = texture->textureDescriptor;
-	sampler = texture->sampler;
 	width = texture->width;
 	height = texture->height;
 	mipLevels = texture->mipLevels;

@@ -231,7 +231,7 @@ void MaterialScene::HandleKeyboardInput(const uint8_t* keystates, float dt)
 		animate = true;
 }
 
-void MaterialScene::HandleMouseInput(const int x, const int y)
+void MaterialScene::HandleMouseInput(uint32_t buttons, const int x, const int y)
 {
 	static Camera* camera = Camera::GetCamera();
 

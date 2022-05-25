@@ -340,6 +340,7 @@ void TextureLoader::destroy()
 	}
 
 	priv::emptyTexture->destroyTexture();
+	delete priv::emptyTexture;
 }
 
 void TextureLoader::loadEmptyTexture(VkCommandPool& commandPool)

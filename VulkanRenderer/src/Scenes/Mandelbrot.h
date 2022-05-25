@@ -25,7 +25,7 @@ public:
 
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
 
-	virtual void HandleMouseInput(const int x, const int y) override;
+	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y) override;
 
 private:
 	// ** Create all aspects of the graphics and compute pipelines **
