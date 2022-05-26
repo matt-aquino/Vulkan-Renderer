@@ -206,23 +206,26 @@ void MaterialScene::HandleKeyboardInput(const uint8_t* keystates, float dt)
 {
 	static Camera* camera = Camera::GetCamera();
 
-	if (keystates[SDL_SCANCODE_A])
-		camera->HandleInput(KeyboardInputs::LEFT, dt);
+	if (isCameraMoving)
+	{
+		if (keystates[SDL_SCANCODE_A])
+			camera->HandleInput(KeyboardInputs::LEFT, dt);
 
-	else if (keystates[SDL_SCANCODE_D])
-		camera->HandleInput(KeyboardInputs::RIGHT, dt);
+		else if (keystates[SDL_SCANCODE_D])
+			camera->HandleInput(KeyboardInputs::RIGHT, dt);
 
-	if (keystates[SDL_SCANCODE_S])
-		camera->HandleInput(KeyboardInputs::BACKWARD, dt);
+		if (keystates[SDL_SCANCODE_S])
+			camera->HandleInput(KeyboardInputs::BACKWARD, dt);
 
-	else if (keystates[SDL_SCANCODE_W])
-		camera->HandleInput(KeyboardInputs::FORWARD, dt);
+		else if (keystates[SDL_SCANCODE_W])
+			camera->HandleInput(KeyboardInputs::FORWARD, dt);
 
-	if (keystates[SDL_SCANCODE_Q])
-		camera->HandleInput(KeyboardInputs::DOWN, dt);
+		if (keystates[SDL_SCANCODE_Q])
+			camera->HandleInput(KeyboardInputs::DOWN, dt);
 
-	else if (keystates[SDL_SCANCODE_E])
-		camera->HandleInput(KeyboardInputs::UP, dt);
+		else if (keystates[SDL_SCANCODE_E])
+			camera->HandleInput(KeyboardInputs::UP, dt);
+	}
 
 	if (keystates[SDL_SCANCODE_LEFT])
 		animate = false;
@@ -234,17 +237,24 @@ void MaterialScene::HandleKeyboardInput(const uint8_t* keystates, float dt)
 void MaterialScene::HandleMouseInput(uint32_t buttons, const int x, const int y)
 {
 	static Camera* camera = Camera::GetCamera();
+	
+	if ((buttons & SDL_BUTTON_RMASK) != 0)
+	{
+		isCameraMoving = true;
+		static float deltaX = 0.0f;
+		static float deltaY = 0.0f;
 
-	static float deltaX = 0.0f;
-	static float deltaY = 0.0f;
+		// check if current motion is less than/greater than last motion
+		float sensivity = 0.1f;
 
-	// check if current motion is less than/greater than last motion
-	float sensivity = 0.1f;
+		deltaX = x * sensivity;
+		deltaY = y * sensivity;
 
-	deltaX = x * sensivity;
-	deltaY = y * sensivity;
+		camera->RotateCamera(deltaX, deltaY);
+	}
 
-	camera->RotateCamera(deltaX, deltaY);
+	else
+		isCameraMoving = false;
 }
 
 void MaterialScene::CreateRenderPass(const VulkanSwapChain& swapChain)
@@ -620,7 +630,6 @@ void MaterialScene::CreateObjects()
 	for (int i = 0; i < 28; i++)
 	{	
 		objects[i] = BasicShapes::createSphere();
-		//objects[i] = BasicShapes::createMonkey();
 		objects[i].setMaterialWithPreset(static_cast<MaterialPresets>(i));
 
 

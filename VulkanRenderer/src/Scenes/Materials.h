@@ -38,6 +38,7 @@ private:
 	std::vector<Mesh> objects;
 	uint32_t currentFrame = 0;
 	bool animate = true;
+	bool isCameraMoving = false;
 
 	struct // scene uniform buffer data
 	{

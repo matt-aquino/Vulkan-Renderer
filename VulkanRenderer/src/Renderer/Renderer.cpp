@@ -192,15 +192,16 @@ void Renderer::RunApp()
 
         // handle user input before next frame
         int currentMouseX, currentMouseY;
+        uint32_t buttons;
 
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
-        SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
+        buttons = SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
         
         // don't run the scene while the scene is minimized
         if (!windowMinimized)
         {
             scenesList[sceneIndex]->HandleKeyboardInput(keystates, dt);
-            scenesList[sceneIndex]->HandleMouseInput(currentMouseX, currentMouseY);
+            scenesList[sceneIndex]->HandleMouseInput(buttons, currentMouseX, currentMouseY);
 
             returnValues = scenesList[sceneIndex]->PresentScene(vulkanSwapChain);
             
