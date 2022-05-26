@@ -15,7 +15,7 @@ public:
 	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
 	virtual void DestroyScene(bool isRecreation) override;
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
-	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y) override;
+	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
 private:
 	void CreateRenderPass(const VulkanSwapChain& swapChain);
@@ -31,6 +31,9 @@ private:
 
 	void CreateCommandBuffers();
 	void RecordCommandBuffers(uint32_t index);
+
+	void InitImGui(const VulkanSwapChain& swapChain);
+	void DrawUI(uint32_t index);
 
 	// scene data
 	VulkanGraphicsPipeline graphicsPipeline;

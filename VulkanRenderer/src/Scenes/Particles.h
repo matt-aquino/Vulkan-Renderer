@@ -18,7 +18,7 @@ public:
 	virtual void DestroyScene(bool isRecreation) override;
 
 	void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
-	void HandleMouseInput(uint32_t buttons, const int x, const int y) override;
+	void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
 private:
 	void CreateCommandBuffers();

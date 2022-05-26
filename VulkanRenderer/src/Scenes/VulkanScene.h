@@ -51,7 +51,7 @@ public:
 
 	// handle user inputs
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) = 0;
-	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y) = 0;
+	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) = 0;
 
 	std::string sceneName;
 

@@ -39,7 +39,7 @@ namespace HelperFunctions
 	}
 	// commands
 	VkCommandBuffer beginSingleTimeCommands(const VkCommandPool& commandPool);
-	void endSingleTimeCommands(const VkCommandPool& commandPool);
+	void endSingleTimeCommands(VkCommandBuffer cmdBuffer, VkQueue queue, const VkCommandPool& commandPool);
 
 	// buffers
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer& buffer, VkDeviceMemory& bufferMemory);

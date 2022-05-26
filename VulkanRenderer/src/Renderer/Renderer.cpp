@@ -16,6 +16,7 @@
 
 #include "Renderer.h"
 #include "Camera.h"
+#include "ImGui/imgui.h"
 
 #include "Scenes/Materials.h"
 SDL_Window* Renderer::appWindow = nullptr;
@@ -27,7 +28,7 @@ Renderer::Renderer()
     CreateVKInstance();
     CreateVKSurface();
     VulkanDevice::GetVulkanDevice()->CreateVulkanDevice(instance, renderSurface);
-    
+
     CreateSwapChain();
     CreateImages();
 
@@ -54,7 +55,7 @@ void Renderer::CreateAppWindow()
         throw std::runtime_error("Could not create SDL window.");
 
     SDL_SetWindowResizable(appWindow, SDL_TRUE);
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+    SDL_SetRelativeMouseMode(SDL_FALSE);
 
     // Get WSI extensions from SDL (we can add more if we like - we just can't remove these)
     if (!SDL_Vulkan_GetInstanceExtensions(appWindow, &extensionCount, NULL))
@@ -127,8 +128,9 @@ void Renderer::RunApp()
     bool isCameraMoving = false;
 
     // Poll for user input.
-    while (isAppRunning) {
-
+    while (isAppRunning) 
+    {
+        float mouseWheelX = 0, mouseWheelY = 0;
         SDL_Event event;
         while (SDL_PollEvent(&event)) 
         {
@@ -143,10 +145,6 @@ void Renderer::RunApp()
                 case SDL_KEYDOWN:
                     switch (event.key.keysym.scancode)
                     {
-                        case SDL_SCANCODE_ESCAPE:
-                            isAppRunning = false;
-                            break;
-
                         case SDL_SCANCODE_LEFT:
 
                             if (sceneIndex == 0)
@@ -179,6 +177,11 @@ void Renderer::RunApp()
                     }
                     break;
 
+                // user scrolled mouse wheel
+                case SDL_MOUSEWHEEL:
+                    mouseWheelX = event.wheel.x;
+                    mouseWheelY = event.wheel.y;
+                    break;
 
                 default:
                     // Do nothing.
@@ -201,7 +204,7 @@ void Renderer::RunApp()
         if (!windowMinimized)
         {
             scenesList[sceneIndex]->HandleKeyboardInput(keystates, dt);
-            scenesList[sceneIndex]->HandleMouseInput(buttons, currentMouseX, currentMouseY);
+            scenesList[sceneIndex]->HandleMouseInput(buttons, currentMouseX, currentMouseY, mouseWheelX, mouseWheelY);
 
             returnValues = scenesList[sceneIndex]->PresentScene(vulkanSwapChain);
             

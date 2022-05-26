@@ -8,7 +8,9 @@ outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 IncludeDir = {}
 IncludeDir["glm"] = "VulkanRenderer/vendor/glm"
 IncludeDir["SDL2"] = "VulkanRenderer/vendor/SDL2"
+IncludeDir["ImGui"] = "VulkanRenderer/vendor/ImGui"
 IncludeDir["vulkan"] = "VulkanRenderer/vendor/vulkan"
+include "VulkanRenderer/vendor/ImGui"
 
 project "VulkanRenderer"
 	location "VulkanRenderer"
@@ -33,10 +35,11 @@ project "VulkanRenderer"
 
 	includedirs
 	{
-		"VulkanRenderer/src",
-		"VulkanRenderer/vendor",
+		"%{prj.name}/src",
+		"%{prj.name}/vendor",
 		"%{IncludeDir.glm}",
 		"%{IncludeDir.SDL2}",
+		"%{IncludeDir.ImGui}",
 		"%{IncludeDir.vulkan}",
 	}
 
@@ -45,6 +48,7 @@ project "VulkanRenderer"
 		"vendor/bin/SDL2/SDL2.lib",
 		"vendor/bin/SDL2/SDL2.dll",
 		"$(VULKAN_SDK)/Lib/vulkan-1.lib",
+		"ImGui"
 	}
 
 	defines { "_CRT_SECURE_NO_WARNINGS" }

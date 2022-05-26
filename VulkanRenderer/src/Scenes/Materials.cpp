@@ -1,9 +1,11 @@
 #include "Materials.h"
 #include <random>
+#include "ImGui/imgui.h"
 
-// TO DO:
-// continue fleshing out this class
-// set up ImGui somehow
+#include "Renderer/vendor/imgui_impl_sdl.h"
+#include "Renderer/vendor/imgui_impl_vulkan.h"
+#include "Renderer/Renderer.h"
+
 
 MaterialScene::MaterialScene(std::string name, const VulkanSwapChain& swapChain)
 {
@@ -20,7 +22,8 @@ MaterialScene::MaterialScene(std::string name, const VulkanSwapChain& swapChain)
 	CreateGraphicsPipeline(swapChain);
 
 	CreateCommandBuffers();
-	RecordScene();
+
+	InitImGui(swapChain);
 }
 
 MaterialScene::~MaterialScene()
@@ -34,7 +37,6 @@ void MaterialScene::RecreateScene(const VulkanSwapChain& swapChain)
 	DestroyScene(true);
 
 	CreateUniforms(swapChain);
-	CreateSyncObjects(swapChain);
 
 	CreateRenderPass(swapChain);
 	CreateFramebuffers(swapChain);
@@ -42,7 +44,8 @@ void MaterialScene::RecreateScene(const VulkanSwapChain& swapChain)
 	CreateGraphicsPipeline(swapChain);
 
 	CreateCommandBuffers();
-	RecordScene();
+
+	InitImGui(swapChain);
 }
 
 void MaterialScene::RecordScene()
@@ -79,6 +82,7 @@ void MaterialScene::RecordScene()
 
 		DrawScene(commandBuffersList[i], graphicsPipeline.pipelineLayout, true);
 
+
 		// params: command buffer, vertex count, instanceCount (for instanced rendering), first vertex, first instance
 		vkCmdEndRenderPass(commandBuffersList[i]);
 
@@ -110,13 +114,14 @@ VulkanReturnValues MaterialScene::PresentScene(const VulkanSwapChain& swapChain)
 		throw std::runtime_error("Failed to acquire swap chain image");
 	}
 
-	UpdateUniforms(imageIndex); // update matrices as needed
-
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
 	{
 		vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 	}
+
+	UpdateUniforms(imageIndex); // update matrices as needed
+	RecordCommandBuffers(imageIndex);
 
 	// mark image as now being in use by this frame
 	imagesInFlight[imageIndex] = inFlightFences[currentFrame];
@@ -194,20 +199,25 @@ void MaterialScene::DestroyScene(bool isRecreation)
 
 		for (int i = 0; i < objects.size(); i++)
 		{
-			//spheres[i].material->destroy();
-			//vkDestroyDescriptorSetLayout(device, spheres[i].descriptorSetLayout, nullptr);
-			//vkDestroyDescriptorPool(device, spheres[i].descriptorPool, nullptr);
 			objects[i].destroyMesh();
 		}
 	}
+
+	ImGui_ImplVulkan_Shutdown();
+	ImGui_ImplSDL2_Shutdown();
+	ImGui::DestroyContext();
 }
 
 void MaterialScene::HandleKeyboardInput(const uint8_t* keystates, float dt)
 {
 	static Camera* camera = Camera::GetCamera();
+	ImGuiIO& io = ImGui::GetIO();
 
 	if (isCameraMoving)
 	{
+		io.WantCaptureKeyboard = false;
+		io.WantTextInput = false;
+
 		if (keystates[SDL_SCANCODE_A])
 			camera->HandleInput(KeyboardInputs::LEFT, dt);
 
@@ -227,6 +237,12 @@ void MaterialScene::HandleKeyboardInput(const uint8_t* keystates, float dt)
 			camera->HandleInput(KeyboardInputs::UP, dt);
 	}
 
+	else
+	{
+		io.WantCaptureKeyboard = true;
+		io.WantTextInput = true;
+	}
+
 	if (keystates[SDL_SCANCODE_LEFT])
 		animate = false;
 
@@ -234,13 +250,17 @@ void MaterialScene::HandleKeyboardInput(const uint8_t* keystates, float dt)
 		animate = true;
 }
 
-void MaterialScene::HandleMouseInput(uint32_t buttons, const int x, const int y)
+void MaterialScene::HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY)
 {
 	static Camera* camera = Camera::GetCamera();
-	
+	ImGuiIO& io = ImGui::GetIO(); // TO DO: continue working on ImGui input. rework this class into a UI class
+
 	if ((buttons & SDL_BUTTON_RMASK) != 0)
 	{
+		SDL_SetRelativeMouseMode(SDL_TRUE);
 		isCameraMoving = true;
+		io.WantCaptureMouse = false;
+
 		static float deltaX = 0.0f;
 		static float deltaY = 0.0f;
 
@@ -254,7 +274,15 @@ void MaterialScene::HandleMouseInput(uint32_t buttons, const int x, const int y)
 	}
 
 	else
+	{
+		SDL_SetRelativeMouseMode(SDL_FALSE);
 		isCameraMoving = false;
+		io.WantCaptureMouse = true;
+		io.AddMouseButtonEvent(0, (buttons & SDL_BUTTON_LMASK) != 0);
+		io.AddMouseWheelEvent(mouseWheelX, mouseWheelY);
+	}
+
+	
 }
 
 void MaterialScene::CreateRenderPass(const VulkanSwapChain& swapChain)
@@ -364,15 +392,18 @@ void MaterialScene::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	}
 
 	// allocate a descriptor set for each frame
-	VkDescriptorPoolSize poolSize = {};
-	poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	poolSize.descriptorCount = descriptorCount;
+	VkDescriptorPoolSize poolSizes[2] = {};
+	poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	poolSizes[0].descriptorCount = descriptorCount;
+
+	poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	poolSizes[1].descriptorCount = descriptorCount;
 
 	VkDescriptorPoolCreateInfo poolInfo = {};
 	poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	poolInfo.poolSizeCount = 1;
-	poolInfo.pPoolSizes = &poolSize;
-	poolInfo.maxSets = descriptorCount;
+	poolInfo.poolSizeCount = 2;
+	poolInfo.pPoolSizes = poolSizes;
+	poolInfo.maxSets = 2 * descriptorCount;
 
 	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor pool");
@@ -717,4 +748,128 @@ void MaterialScene::CreateCommandBuffers()
 
 void MaterialScene::RecordCommandBuffers(uint32_t index)
 {
+	VkCommandBufferBeginInfo beginInfo = {};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = 0; // defines how we want to use the command buffer
+	beginInfo.pInheritanceInfo = nullptr; // only important if we're using secondary command buffers
+
+	if (vkBeginCommandBuffer(commandBuffersList[index], &beginInfo) != VK_SUCCESS)
+		throw std::runtime_error("Failed to being recording command buffer!");
+
+	VkRenderPassBeginInfo renderPassInfo = {};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	renderPassInfo.renderPass = graphicsPipeline.renderPass;
+	renderPassInfo.framebuffer = graphicsPipeline.framebuffers[index];
+	renderPassInfo.renderArea.offset = { 0, 0 };
+	renderPassInfo.renderArea.extent = graphicsPipeline.scissors.extent;
+
+	VkClearValue clearColors[2];
+	clearColors[0].color = { 0.1f, 0.1f, 0.1f, 1.0f };
+	clearColors[1].depthStencil = { 1.0f, 0 };
+	renderPassInfo.clearValueCount = 2;
+	renderPassInfo.pClearValues = clearColors;
+
+	vkCmdBeginRenderPass(commandBuffersList[index], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBindPipeline(commandBuffersList[index], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
+
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindDescriptorSets(commandBuffersList[index], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout,
+		0, 1, &graphicsPipeline.descriptorSets[index], 0, nullptr);
+
+	DrawScene(commandBuffersList[index], graphicsPipeline.pipelineLayout, true);
+
+	DrawUI(index);
+
+	// params: command buffer, vertex count, instanceCount (for instanced rendering), first vertex, first instance
+	vkCmdEndRenderPass(commandBuffersList[index]);
+
+	if (vkEndCommandBuffer(commandBuffersList[index]) != VK_SUCCESS)
+		throw std::runtime_error("Failed to record command buffer");
+}
+
+void MaterialScene::InitImGui(const VulkanSwapChain& swapChain)
+{
+	VulkanDevice* vkDevice = VulkanDevice::GetVulkanDevice();
+
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;           // Enable Docking
+	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;         // Enable Multi-Viewport / Platform Windows
+	io.Fonts->AddFontDefault();
+	ImGui::StyleColorsDark();
+
+	// When viewports are enabled we tweak WindowRounding/WindowBg so platform windows can look identical to regular ones.
+	ImGuiStyle& style = ImGui::GetStyle();
+	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+	{
+		style.WindowRounding = 0.0f;
+		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+	}
+
+	ImGui_ImplSDL2_InitForVulkan(Renderer::GetWindow());
+	ImGui_ImplVulkan_InitInfo initInfo =
+	{
+		Renderer::GetVKInstance(),
+		vkDevice->GetPhysicalDevice(),
+		vkDevice->GetLogicalDevice(),
+		vkDevice->GetFamilyIndices().graphicsFamily.value(),
+		vkDevice->GetQueues().renderQueue,
+		nullptr,
+		graphicsPipeline.descriptorPool,
+		0,
+		2,
+		swapChain.swapChainImages.size(),
+		VK_SAMPLE_COUNT_1_BIT,
+		nullptr, nullptr
+	};
+
+	ImGui_ImplVulkan_Init(&initInfo, graphicsPipeline.renderPass);
+	VkCommandBuffer fontCmdBuffer = HelperFunctions::beginSingleTimeCommands(commandPool);
+	ImGui_ImplVulkan_CreateFontsTexture(fontCmdBuffer);
+	HelperFunctions::endSingleTimeCommands(fontCmdBuffer, vkDevice->GetQueues().renderQueue, commandPool);
+}
+
+void MaterialScene::DrawUI(uint32_t index)
+{
+	static bool showDemoWindow = true;
+	if (isCameraMoving) return;
+
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplSDL2_NewFrame();
+	ImGui::NewFrame();
+
+	if (showDemoWindow)
+		ImGui::ShowDemoWindow(&showDemoWindow);
+
+	ImGui::Begin("Test Window");
+	ImGui::Checkbox("Show Demo Window", &showDemoWindow);
+	
+	// select individual spheres
+	if (ImGui::TreeNode("Spheres"))
+	{
+		for (int i = 0; i < objects.size(); i++)
+		{
+			if (ImGui::TreeNode((void*)(intptr_t)i, "Sphere %i", i + 1))
+			{
+				glm::vec3 ambient = objects[i].material->ubo.ambient;
+				glm::vec3 diffuse = objects[i].material->ubo.diffuse;
+				glm::vec3 specular = objects[i].material->ubo.specular;
+
+				float amb[] = {ambient.x, ambient.y, ambient.z};
+				float dif[] = { diffuse.x, diffuse.y, diffuse.z};
+				float spec[] = { specular.x, specular.y, specular.z};
+				ImGui::InputFloat3("Ambient Color", amb);
+				ImGui::InputFloat3("Diffuse Color", dif);
+				ImGui::InputFloat3("Specular Color", spec);
+				ImGui::InputFloat("Shininess", &objects[i].material->ubo.shininess);
+				ImGui::TreePop();
+			}
+		}
+		ImGui::TreePop();
+	}
+	ImGui::End();
+
+	ImGui::Render();
+	ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffersList[index], nullptr);
 }

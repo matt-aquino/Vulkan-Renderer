@@ -48,7 +48,7 @@ public:
 	// Free up any allocated memory
 	void CleanUp();
 
-	unsigned int windowWidth = 800, windowHeight = 600;
+	unsigned int windowWidth = 1280, windowHeight = 720;
 
 private:
 

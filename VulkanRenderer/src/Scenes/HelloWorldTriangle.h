@@ -34,7 +34,7 @@ public:
 	virtual void DestroyScene(bool isRecreation) override;
 
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
-	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y) override;
+	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
 private:
 	// ** Create all aspects of the graphics pipeline **
