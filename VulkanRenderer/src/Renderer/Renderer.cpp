@@ -221,7 +221,6 @@ void Renderer::CleanUp()
     // Clear all scenes
     for (VulkanScene* scene : scenesList)
     {
-        scene->DestroyScene(false);
         delete scene;
     }
 

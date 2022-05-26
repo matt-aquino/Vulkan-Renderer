@@ -32,7 +32,7 @@ class VulkanScene
 {
 public:
 	VulkanScene();
-	~VulkanScene();
+	virtual ~VulkanScene();
 
 
 	// ** Recreate the scene when swap chain goes out of date **
