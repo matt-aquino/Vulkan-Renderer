@@ -381,9 +381,15 @@ void TextureLoader::loadEmptyTexture(VkCommandPool& commandPool)
 	HelperFunctions::createImage(width, height, 1, imageType, format, tiling, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, priv::emptyTexture->image, priv::emptyTexture->imageMemory);
 
-	HelperFunctions::transitionImageLayout(priv::emptyTexture->image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, commandPool);
+	HelperFunctions::transitionImageLayout(priv::emptyTexture->image, format, 
+		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, commandPool,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
 	HelperFunctions::copyBufferToImage(commandPool, stagingBuffer, priv::emptyTexture->image, static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1);
-	HelperFunctions::transitionImageLayout(priv::emptyTexture->image, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, commandPool);
+
+	HelperFunctions::transitionImageLayout(priv::emptyTexture->image, format, 
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, commandPool,
+		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
@@ -452,9 +458,15 @@ Texture* TextureLoader::loadTexture(std::string folder, std::string name, Textur
 	HelperFunctions::createImage(width, height, 1, imageType, format, tiling, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, tex->image, tex->imageMemory);
 
-	HelperFunctions::transitionImageLayout(tex->image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, shared::commandPool);
+	HelperFunctions::transitionImageLayout(tex->image, format, 
+		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, shared::commandPool,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+
 	HelperFunctions::copyBufferToImage(shared::commandPool, stagingBuffer, tex->image, static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1);
-	HelperFunctions::transitionImageLayout(tex->image, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, shared::commandPool);
+	
+	HelperFunctions::transitionImageLayout(tex->image, format, 
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, shared::commandPool,
+		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);

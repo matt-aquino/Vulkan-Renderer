@@ -50,29 +50,18 @@ void VulkanBuffer::flush(VkDeviceSize size, VkDeviceSize offset)
 
 void VulkanGraphicsPipeline::destroyGraphicsPipeline(const VkDevice& device)
 {
-	for (VkFramebuffer fb : framebuffers)
+	for (size_t i = 0; i < framebuffers.size(); i++)
 	{
-		vkDestroyFramebuffer(device, fb, nullptr);
+		vkDestroyFramebuffer(device, framebuffers[i], nullptr);
 	}
 
 	for (size_t i = 0; i < uniformBuffers.size(); i++)
 	{
-		vkDestroyBuffer(device, uniformBuffers[i].buffer, nullptr);
-		vkFreeMemory(device, uniformBuffers[i].bufferMemory, nullptr);
+		uniformBuffers[i].destroy();
 	}
 
-	// check is buffers are filled before attempting to delete them
-	if (vertexBuffer.has_value())
-	{
-		vkDestroyBuffer(device, vertexBuffer->buffer, nullptr);
-		vkFreeMemory(device, vertexBuffer->bufferMemory, nullptr);
-	}
-
-	if (indexBuffer.has_value())
-	{
-		vkDestroyBuffer(device, indexBuffer->buffer, nullptr);
-		vkFreeMemory(device, indexBuffer->bufferMemory, nullptr);
-	}
+	vertexBuffer.destroy();
+	indexBuffer.destroy();
 
 	if (!isDepthBufferEmpty)
 	{
@@ -545,6 +534,10 @@ void Mesh::setMaterialColorWithValue(ColorType colorType, glm::vec3 color)
 	default:
 		break;
 	}
+
+	material->uniformBuffer.map();
+	memcpy(material->uniformBuffer.mappedMemory, &material->ubo, sizeof(material->ubo));
+	material->uniformBuffer.unmap();
 }
 
 void Mesh::setMaterialWithPreset(MaterialPresets preset)
@@ -766,7 +759,9 @@ void Mesh::setMaterialWithPreset(MaterialPresets preset)
 		break;
 	}
 
+	material->uniformBuffer.map();
 	memcpy(material->uniformBuffer.mappedMemory, &material->ubo, sizeof(material->ubo));
+	material->uniformBuffer.unmap();
 }
 
 void Mesh::setMaterialValue(MaterialValueType valueType, float value)
@@ -816,6 +811,10 @@ void Mesh::setMaterialValue(MaterialValueType valueType, float value)
 	default:
 		break;
 	}
+
+	material->uniformBuffer.map();
+	memcpy(material->uniformBuffer.mappedMemory, &material->ubo, sizeof(material->ubo));
+	material->uniformBuffer.unmap();
 }
 
 void Mesh::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial)

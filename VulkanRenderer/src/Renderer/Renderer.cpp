@@ -16,7 +16,6 @@
 
 #include "Renderer.h"
 #include "Camera.h"
-#include "ImGui/imgui.h"
 
 #include "Scenes/Materials.h"
 SDL_Window* Renderer::appWindow = nullptr;

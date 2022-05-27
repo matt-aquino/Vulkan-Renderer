@@ -63,7 +63,7 @@ void HelloWorldTriangle::RecordScene()
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
 
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &graphicsPipeline.vertexBuffer->buffer, offsets);
+		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &graphicsPipeline.vertexBuffer.buffer, offsets);
 		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
 		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout, 
 			0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);

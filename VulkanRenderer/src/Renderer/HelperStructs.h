@@ -48,8 +48,8 @@ struct VulkanSwapChain
 
 struct VulkanBuffer
 {
-	VkBuffer buffer;
-	VkDeviceMemory bufferMemory;
+	VkBuffer buffer = VK_NULL_HANDLE;
+	VkDeviceMemory bufferMemory = VK_NULL_HANDLE;
 	void* mappedMemory = nullptr; // idea taken from Sascha Willem. simplifies repeated VkMapMemory/VkUnmapMemory calls
 	bool isMapped = false;
 	VkDeviceSize bufferSize = 0;
@@ -81,8 +81,8 @@ struct VulkanGraphicsPipeline
 	VkRect2D scissors;
 
 	// for scenes where vertex data is passed in raw, instead of stored in a mesh
-	std::optional<VulkanBuffer> vertexBuffer; 
-	std::optional<VulkanBuffer> indexBuffer;
+	VulkanBuffer vertexBuffer = {};
+	VulkanBuffer indexBuffer = {};
 
 	std::vector<VulkanBuffer> uniformBuffers;
 

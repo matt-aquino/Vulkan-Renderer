@@ -1,6 +1,7 @@
 #pragma once
 
 #include "VulkanScene.h"
+#include "Renderer/UI.h"
 
 class MaterialScene : public VulkanScene // TO DO: flesh out this class, and try different presets
 {
@@ -32,7 +33,6 @@ private:
 	void CreateCommandBuffers();
 	void RecordCommandBuffers(uint32_t index);
 
-	void InitImGui(const VulkanSwapChain& swapChain);
 	void DrawUI(uint32_t index);
 
 	// scene data
@@ -42,6 +42,8 @@ private:
 	uint32_t currentFrame = 0;
 	bool animate = true;
 	bool isCameraMoving = false;
+
+	UI* ui = nullptr;
 
 	struct // scene uniform buffer data
 	{
