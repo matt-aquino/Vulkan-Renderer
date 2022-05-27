@@ -1,11 +1,6 @@
 #include "Materials.h"
 #include <random>
-#include "ImGui/imgui.h"
-
-#include "Renderer/vendor/imgui_impl_sdl.h"
-#include "Renderer/vendor/imgui_impl_vulkan.h"
 #include "Renderer/Renderer.h"
-
 
 MaterialScene::MaterialScene(std::string name, const VulkanSwapChain& swapChain)
 {
@@ -723,7 +718,7 @@ void MaterialScene::RecordCommandBuffers(uint32_t index)
 	renderPassInfo.renderArea.extent = graphicsPipeline.scissors.extent;
 
 	VkClearValue clearColors[2];
-	clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+	clearColors[0].color = { clearColor.r, clearColor.g, clearColor.b, clearColor.a };
 	clearColors[1].depthStencil = { 1.0f, 0 };
 	renderPassInfo.clearValueCount = 2;
 	renderPassInfo.pClearValues = clearColors;
@@ -752,49 +747,52 @@ void MaterialScene::DrawUI(uint32_t index)
 	{
 		ui->NewUIFrame();
 		{
-			static bool showDemoWindow = true;
+			static bool showDemoWindow = false;
 
 			if (showDemoWindow)
-				ImGui::ShowDemoWindow(&showDemoWindow);
+				ui->ShowDemoWindow();
 
-			ImGui::Begin("Test Window");
+			ui->NewWindow("Test Window");
 			{
-				ImGui::Checkbox("Show Demo Window", &showDemoWindow);
+				ui->NewCheckBox("Show Demo Window", &showDemoWindow);
+				ui->NewSliderVec4("Clear Color", &clearColor, 0.0f, 1.0f);
 
 				// select individual spheres
-				if (ImGui::TreeNode("Spheres"))
+				if (ui->NewTreeNode("Spheres"))
 				{
 					for (int i = 0; i < objects.size(); i++)
 					{
-						if (ImGui::TreeNode((void*)(intptr_t)i, "Sphere %i", i + 1))
+						bool materialChanged = false;
+
+						if (ui->NewTreeNode((void*)(intptr_t)i, "Sphere %i", i + 1))
 						{
-							glm::vec3 ambient = objects[i].material->ubo.ambient;
-							glm::vec3 diffuse = objects[i].material->ubo.diffuse;
-							glm::vec3 specular = objects[i].material->ubo.specular;
-							float shine = objects[i].material->ubo.shininess;
+							glm::vec3* amb = &objects[i].material->ubo.ambient;
+							glm::vec3* dif = &objects[i].material->ubo.diffuse;
+							glm::vec3* spc = &objects[i].material->ubo.specular;
+							float* shine = &objects[i].material->ubo.shininess;
 
-							float amb[] = { ambient.x, ambient.y, ambient.z };
-							float dif[] = { diffuse.x, diffuse.y, diffuse.z };
-							float spec[] = { specular.x, specular.y, specular.z };
-							if (ImGui::SliderFloat3("Ambient Color", amb, 0.0f, 1.0f, "%3f", 1.0f))
-								objects[i].setMaterialColorWithValue(ColorType::AMBIENT, glm::vec3(amb[0], amb[1], amb[2]));
+							if (ui->NewSliderVec3("Ambient Color", amb, 0.0f, 1.0f))
+								materialChanged = true;
 
-							if (ImGui::SliderFloat3("Diffuse Color", dif, 0.0f, 1.0f, "%3f", 1.0f))
-								objects[i].setMaterialColorWithValue(ColorType::DIFFUSE, glm::vec3(dif[0], dif[1], dif[2]));
+							if (ui->NewSliderVec3("Diffuse Color", dif, 0.0f, 1.0f))
+								materialChanged = true;
 
-							if (ImGui::SliderFloat3("Specular Color", spec, 0.0f, 1.0f, "%3f", 1.0f))
-								objects[i].setMaterialColorWithValue(ColorType::SPECULAR, glm::vec3(spec[0], spec[1], spec[2]));
+							if (ui->NewSliderVec3("Specular Color", spc, 0.0f, 1.0f))
+								materialChanged = true;
 
-							if (ImGui::SliderFloat("Shininess", &shine, 1.0f, 256.0f, "%3f", 1.0f))
-								objects[i].setMaterialValue(MaterialValueType::SHININESS, shine);
+							if (ui->NewSliderFloat("Shininess", shine, 1.0f, 256.0f))
+								materialChanged = true;
 
-							ImGui::TreePop();
+							if (materialChanged)
+								objects[i].material->updateMaterial();
+							
+							ui->EndTreeNode();
 						}
 					}
-					ImGui::TreePop();
+					ui->EndTreeNode();
 				}
 			}
-			ImGui::End();
+			ui->EndWindow();
 		}
 		ui->EndFrame();
 	}

@@ -53,6 +53,6 @@ private:
 		glm::vec3 viewPos;
 	} uboScene;
 	
-
+	glm::vec4 clearColor = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 
 };

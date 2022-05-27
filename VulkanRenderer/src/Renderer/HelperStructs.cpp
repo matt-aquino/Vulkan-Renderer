@@ -432,6 +432,13 @@ void Material::createDescriptorSet(Texture* emptyTexture)
 	vkUpdateDescriptorSets(device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
+void Material::updateMaterial()
+{
+	uniformBuffer.map();
+	memcpy(uniformBuffer.mappedMemory, &ubo, sizeof(ubo));
+	uniformBuffer.unmap();
+}
+
 void Mesh::createDescriptorSet()
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
@@ -535,9 +542,7 @@ void Mesh::setMaterialColorWithValue(ColorType colorType, glm::vec3 color)
 		break;
 	}
 
-	material->uniformBuffer.map();
-	memcpy(material->uniformBuffer.mappedMemory, &material->ubo, sizeof(material->ubo));
-	material->uniformBuffer.unmap();
+	material->updateMaterial();
 }
 
 void Mesh::setMaterialWithPreset(MaterialPresets preset)
@@ -759,9 +764,7 @@ void Mesh::setMaterialWithPreset(MaterialPresets preset)
 		break;
 	}
 
-	material->uniformBuffer.map();
-	memcpy(material->uniformBuffer.mappedMemory, &material->ubo, sizeof(material->ubo));
-	material->uniformBuffer.unmap();
+	material->updateMaterial();
 }
 
 void Mesh::setMaterialValue(MaterialValueType valueType, float value)
@@ -812,9 +815,7 @@ void Mesh::setMaterialValue(MaterialValueType valueType, float value)
 		break;
 	}
 
-	material->uniformBuffer.map();
-	memcpy(material->uniformBuffer.mappedMemory, &material->ubo, sizeof(material->ubo));
-	material->uniformBuffer.unmap();
+	material->updateMaterial();
 }
 
 void Mesh::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial)

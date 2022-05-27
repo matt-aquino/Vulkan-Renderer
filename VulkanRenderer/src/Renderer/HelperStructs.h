@@ -254,6 +254,7 @@ struct Material
 	void destroy();
 
 	void createDescriptorSet(Texture* emptyTexture);
+	void updateMaterial();
 };
 
 enum class ColorType

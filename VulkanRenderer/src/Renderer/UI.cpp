@@ -170,6 +170,70 @@ void UI::RenderFrame(VkCommandBuffer commandBuffer, uint32_t index)
 	vkCmdEndRenderPass(commandBuffer);
 }
 
+bool UI::NewWindow(const char* name)
+{
+	return ImGui::Begin(name);
+}
+
+void UI::EndWindow()
+{
+	ImGui::End();
+}
+
+void UI::NewText(const char* text)
+{
+	ImGui::Text(text);
+}
+
+bool UI::NewCheckBox(const char* label, bool* value)
+{
+	return ImGui::Checkbox(label, value);
+}
+
+void UI::ShowDemoWindow()
+{
+	ImGui::ShowDemoWindow();
+}
+
+bool UI::NewSliderFloat(const char* name, float* value, float minValue, float maxValue)
+{
+	return ImGui::SliderFloat(name, value, minValue, maxValue);
+}
+
+bool UI::NewSliderVec2(const char* name, glm::vec2* values, float minValue, float maxValue)
+{
+	return ImGui::SliderFloat2(name, &values->x, minValue, maxValue);
+}
+
+bool UI::NewSliderVec3(const char* name, glm::vec3* values, float minValue, float maxValue)
+{
+	return ImGui::SliderFloat3(name, &values->x, minValue, maxValue);
+}
+
+bool UI::NewSliderVec4(const char* name, glm::vec4* values, float minValue, float maxValue)
+{
+	return ImGui::SliderFloat4(name, &values->x, minValue, maxValue);
+}
+
+bool UI::NewTreeNode(const char* label)
+{
+	return ImGui::TreeNode(label);
+}
+
+bool UI::NewTreeNode(const void* ptr, const char* label, ...)
+{
+	va_list args;
+	va_start(args, label);
+	bool is_open = ImGui::TreeNodeExV(ptr, 0, label, args);
+	va_end(args);
+	return is_open;
+}
+
+void UI::EndTreeNode()
+{
+	ImGui::TreePop();
+}
+
 void UI::UpdateBuffers()
 {
 	ImDrawData* imDrawData = ImGui::GetDrawData();
