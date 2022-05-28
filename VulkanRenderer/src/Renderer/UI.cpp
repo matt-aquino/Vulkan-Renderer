@@ -38,7 +38,7 @@ UI::UI(const VkCommandPool& commandPool, const VulkanSwapChain& swapChain, const
 		0,
 		2,
 		swapChain.swapChainImages.size(),
-		VK_SAMPLE_COUNT_1_BIT,
+		HelperFunctions::getMaximumSampleCount(),
 		nullptr, nullptr
 	};
 
@@ -193,6 +193,12 @@ bool UI::NewCheckBox(const char* label, bool* value)
 void UI::ShowDemoWindow()
 {
 	ImGui::ShowDemoWindow();
+}
+
+void UI::DisplayFPS()
+{
+	ImGuiIO& io = ImGui::GetIO();
+	ImGui::Text("FPS: %2f", io.Framerate);
 }
 
 bool UI::NewSliderFloat(const char* name, float* value, float minValue, float maxValue)
@@ -395,14 +401,14 @@ void UI::CreateFontTexture(VkQueue renderQueue)
 	VkImageViewType imageViewType = VK_IMAGE_VIEW_TYPE_2D;
 	VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
 
-	HelperFunctions::createImage(width, height, 1,
+	HelperFunctions::createImage(width, height, 1, 1, VK_SAMPLE_COUNT_1_BIT,
 		imageType, format, tiling,
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		fontTexture.image, fontTexture.imageMemory);
 
 	HelperFunctions::createImageView(fontTexture.image, fontTexture.imageView,
-		format, VK_IMAGE_ASPECT_COLOR_BIT, imageViewType);
+		format, VK_IMAGE_ASPECT_COLOR_BIT, imageViewType, 1);
 
 	VulkanBuffer stagingBuffer = {};
 	HelperFunctions::createBuffer(upload_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -413,7 +419,7 @@ void UI::CreateFontTexture(VkQueue renderQueue)
 	memcpy(stagingBuffer.mappedMemory, pixels, upload_size);
 	stagingBuffer.unmap();
 
-	HelperFunctions::transitionImageLayout(fontTexture.image, format,
+	HelperFunctions::transitionImageLayout(fontTexture.image, format, 1,
 		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		commandPool, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
@@ -421,7 +427,7 @@ void UI::CreateFontTexture(VkQueue renderQueue)
 		stagingBuffer.buffer, fontTexture.image,
 		width, height, 1);
 
-	HelperFunctions::transitionImageLayout(fontTexture.image, format,
+	HelperFunctions::transitionImageLayout(fontTexture.image, format, 1,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		commandPool, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 

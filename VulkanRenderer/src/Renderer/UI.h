@@ -26,6 +26,7 @@ public:
 	bool NewCheckBox(const char* label, bool* value);
 
 	void ShowDemoWindow();
+	void DisplayFPS();
 
 	bool NewSliderFloat(const char* name, float* value, float minValue, float maxValue);
 	bool NewSliderVec2(const char* name, glm::vec2* values, float minValue, float maxValue);

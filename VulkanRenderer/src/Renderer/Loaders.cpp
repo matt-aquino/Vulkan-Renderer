@@ -378,24 +378,25 @@ void TextureLoader::loadEmptyTexture(VkCommandPool& commandPool)
 	memcpy(data, pixels, static_cast<size_t>(imageSize));
 	vkUnmapMemory(device, stagingBufferMemory);
 
-	HelperFunctions::createImage(width, height, 1, imageType, format, tiling, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+	HelperFunctions::createImage(width, height, 1, 1, VK_SAMPLE_COUNT_1_BIT, 
+		imageType, format, tiling, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, priv::emptyTexture->image, priv::emptyTexture->imageMemory);
 
-	HelperFunctions::transitionImageLayout(priv::emptyTexture->image, format, 
+	HelperFunctions::transitionImageLayout(priv::emptyTexture->image, format, 1, 
 		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, commandPool,
 		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
 	HelperFunctions::copyBufferToImage(commandPool, stagingBuffer, priv::emptyTexture->image, static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1);
 
-	HelperFunctions::transitionImageLayout(priv::emptyTexture->image, format, 
+	HelperFunctions::transitionImageLayout(priv::emptyTexture->image, format, 1,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, commandPool,
 		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 
-	HelperFunctions::createImageView(priv::emptyTexture->image, priv::emptyTexture->imageView, format, aspectFlags, viewType);
-	HelperFunctions::createSampler(priv::emptyTexture->sampler, filter, mode, VK_FALSE, 1.0f, 0.0f, 1.0f);
+	HelperFunctions::createImageView(priv::emptyTexture->image, priv::emptyTexture->imageView, format, aspectFlags, viewType, 1);
+	HelperFunctions::createSampler(priv::emptyTexture->sampler, filter, mode, VK_FALSE, 1.0f, 0.0f, 1);
 
 	priv::emptyTexture->textureDescriptor.sampler = priv::emptyTexture->sampler;
 	priv::emptyTexture->textureDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -417,10 +418,12 @@ Texture* TextureLoader::loadTexture(std::string folder, std::string name, Textur
 	if (!pixels)
 		return priv::emptyTexture;
 
+	uint32_t mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1;
+
 	Texture* tex = new Texture(textureType);
 	tex->width = uint32_t(width);
 	tex->height = uint32_t(height);
-	tex->mipLevels = 1;
+	tex->mipLevels = mipLevels;
 	tex->layerCount = 1;
 	priv::loadedTextures.insert({ name, tex });
 
@@ -455,24 +458,29 @@ Texture* TextureLoader::loadTexture(std::string folder, std::string name, Textur
 		break;
 	}
 
-	HelperFunctions::createImage(width, height, 1, imageType, format, tiling, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+	HelperFunctions::createImage(width, height, 1, mipLevels, VK_SAMPLE_COUNT_1_BIT,
+		imageType, format, tiling, 
+		VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, tex->image, tex->imageMemory);
 
-	HelperFunctions::transitionImageLayout(tex->image, format, 
+	HelperFunctions::transitionImageLayout(tex->image, format, mipLevels,
 		VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, shared::commandPool,
 		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-	HelperFunctions::copyBufferToImage(shared::commandPool, stagingBuffer, tex->image, static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1);
+	uint32_t texWidth = static_cast<uint32_t>(width);
+	uint32_t texHeight = static_cast<uint32_t>(height);
+	HelperFunctions::copyBufferToImage(shared::commandPool, stagingBuffer, tex->image, texWidth, texHeight, 1);
 	
-	HelperFunctions::transitionImageLayout(tex->image, format, 
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, shared::commandPool,
-		VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+	HelperFunctions::generateImageMipmaps(tex->image, format, texWidth, texHeight, 1, mipLevels, shared::commandPool);
+	//HelperFunctions::transitionImageLayout(tex->image, format, mipLevels,
+	//	VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, shared::commandPool,
+	//	VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);
 
-	HelperFunctions::createImageView(tex->image, tex->imageView, format, aspectFlags, viewType);
-	HelperFunctions::createSampler(tex->sampler, filter, mode, VK_TRUE, 4.0f, 0.0f, 1.0f);
+	HelperFunctions::createImageView(tex->image, tex->imageView, format, aspectFlags, viewType, mipLevels);
+	HelperFunctions::createSampler(tex->sampler, filter, mode, VK_TRUE, 4.0f, 0.0f, mipLevels);
 
 	tex->textureDescriptor.sampler = tex->sampler;
 	tex->textureDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;

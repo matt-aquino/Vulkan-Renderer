@@ -23,6 +23,7 @@ private:
 	void CreateDescriptorSets(const VulkanSwapChain& swapChain);
 	void CreateFramebuffers(const VulkanSwapChain& swapChain);
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);
+	void CreateFramebufferResources(const VulkanSwapChain& swapChain);
 
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);
 
@@ -54,5 +55,8 @@ private:
 	} uboScene;
 	
 	glm::vec4 clearColor = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+
+	// MSAA targets
+	Texture msaaTex = {};
 
 };

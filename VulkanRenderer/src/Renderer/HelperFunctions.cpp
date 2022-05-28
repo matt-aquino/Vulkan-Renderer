@@ -237,7 +237,7 @@ namespace HelperFunctions
 		return shaderModule;
 	}
 
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, 
+	void transitionImageLayout(VkImage image, VkFormat format, uint32_t mipLevels, VkImageLayout oldLayout, VkImageLayout newLayout,
 		const VkCommandPool& commandPool, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage)
 	{
 		VulkanDevice* vkDevice = VulkanDevice::GetVulkanDevice();
@@ -254,7 +254,7 @@ namespace HelperFunctions
 		barrier.image = image;
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		barrier.subresourceRange.baseMipLevel = 0;
-		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.levelCount = mipLevels;
 		barrier.subresourceRange.baseArrayLayer = 0;
 		barrier.subresourceRange.layerCount = 1;
 
@@ -356,7 +356,8 @@ namespace HelperFunctions
 		endSingleTimeCommands(commandBuffer, renderQueue, commandPool);
 	}
 
-	void createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, 
+	void createImage(uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkSampleCountFlagBits sampleCount, 
+		VkImageType imageType, VkFormat format, VkImageTiling tiling,
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& memory)
 	{
 		static VkPhysicalDevice physical = VulkanDevice::GetVulkanDevice()->GetPhysicalDevice();
@@ -367,13 +368,13 @@ namespace HelperFunctions
 		imageInfo.extent.width = width;
 		imageInfo.extent.height = height;
 		imageInfo.extent.depth = depth;
-		imageInfo.mipLevels = 1;
+		imageInfo.mipLevels = mipLevels;
 		imageInfo.arrayLayers = 1;
 		imageInfo.format = format;
 		imageInfo.tiling = tiling;
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		imageInfo.usage = usage;
-		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageInfo.samples = sampleCount;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		if (vkCreateImage(logical, &imageInfo, nullptr, &image) != VK_SUCCESS)
@@ -409,7 +410,7 @@ namespace HelperFunctions
 
 	}
 
-	void createImageView(VkImage& image, VkImageView& imageView, VkFormat format, VkImageAspectFlags aspectFlags, VkImageViewType viewType)
+	void createImageView(VkImage& image, VkImageView& imageView, VkFormat format, VkImageAspectFlags aspectFlags, VkImageViewType viewType, uint32_t mipLevels)
 	{
 		VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
@@ -419,7 +420,7 @@ namespace HelperFunctions
 		viewInfo.format = format;
 		viewInfo.subresourceRange.aspectMask = aspectFlags;
 		viewInfo.subresourceRange.baseMipLevel = 0;
-		viewInfo.subresourceRange.levelCount = 1;
+		viewInfo.subresourceRange.levelCount = mipLevels;
 		viewInfo.subresourceRange.baseArrayLayer = 0;
 		viewInfo.subresourceRange.layerCount = 1;
 
@@ -427,7 +428,7 @@ namespace HelperFunctions
 			throw std::runtime_error("Failed to create image view");
 	}
 
-	void createSampler(VkSampler& sampler, VkFilter filter, VkSamplerAddressMode addrMode, VkBool32 enableAnisotropy, float maxAnisotropy, float minLod, float maxLod, VkBorderColor borderColor)
+	void createSampler(VkSampler& sampler, VkFilter filter, VkSamplerAddressMode addrMode, VkBool32 enableAnisotropy, float maxAnisotropy, float minLod, int32_t mipLevels, VkBorderColor borderColor)
 	{
 		static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
@@ -445,10 +446,103 @@ namespace HelperFunctions
 		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
 		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		samplerInfo.minLod = minLod;
-		samplerInfo.maxLod = maxLod;
+		samplerInfo.maxLod = static_cast<float>(mipLevels);
 
 		if (vkCreateSampler(device, &samplerInfo, nullptr, &sampler) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create texture sampler");
+	}
+
+	void generateImageMipmaps(VkImage image, VkFormat format, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, const VkCommandPool& commandPool)
+	{
+		// check if image format supports mipmapping
+		VkFormatProperties properties;
+		vkGetPhysicalDeviceFormatProperties(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), format, &properties);
+
+		if (!(properties.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT))
+			throw std::runtime_error("texture image format does not support linear blitting!");
+
+		VkCommandBuffer mipCmdBuffer = beginSingleTimeCommands(commandPool);
+
+		VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+		barrier.image = image;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.layerCount = 1;
+		barrier.subresourceRange.levelCount = 1;
+
+		int32_t mipWidth = width, mipHeight = height, mipDepth = depth;
+		for (uint32_t i = 1; i < mipLevels; i++)
+		{
+			barrier.subresourceRange.baseMipLevel = i - 1; // start at mip level 0
+			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL; 	// each image gets data copied from a buffer, so layout is currently TRANSFER_DST
+			barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;	// each mip image feeds into the next, so we need to transition to TRANSFER_SRC
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+			// wait for previous image to be filled
+			vkCmdPipelineBarrier(mipCmdBuffer,
+				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
+				0, nullptr,
+				0, nullptr,
+				1, &barrier);
+
+			VkImageBlit blit = {};
+
+			// source level
+			blit.srcOffsets[0] = { 0, 0, 0 };
+			blit.srcOffsets[1] = { mipWidth, mipHeight, mipDepth };
+			blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			blit.srcSubresource.mipLevel = i - 1;
+			blit.srcSubresource.baseArrayLayer = 0;
+			blit.srcSubresource.layerCount = 1;
+
+			// destination level
+			blit.dstOffsets[0] = { 0, 0, 0 };
+			blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, mipDepth > 1 ? mipDepth / 2 : 1 };
+			blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			blit.dstSubresource.mipLevel = i;
+			blit.dstSubresource.baseArrayLayer = 0;
+			blit.dstSubresource.layerCount = 1;
+
+			vkCmdBlitImage(mipCmdBuffer,
+				image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+				image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				1, &blit,
+				VK_FILTER_LINEAR);
+
+			// tranafer new mip level to shader read
+			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+			vkCmdPipelineBarrier(mipCmdBuffer,
+				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+				0, nullptr,
+				0, nullptr,
+				1, &barrier);
+
+			if (mipWidth > 1) mipWidth /= 2;
+			if (mipHeight > 1) mipHeight /= 2;
+			if (mipDepth > 1) mipDepth /= 2;
+		}
+
+		// transition last mip level, since it isn't blitted from in the loop
+		barrier.subresourceRange.baseMipLevel = mipLevels - 1;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		vkCmdPipelineBarrier(mipCmdBuffer,
+			VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+			0, nullptr,
+			0, nullptr,
+			1, &barrier);
+
+		endSingleTimeCommands(mipCmdBuffer, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue, commandPool);
 	}
 
 	std::vector<char> readShaderFile(const std::string& file)
@@ -471,4 +565,21 @@ namespace HelperFunctions
 	}
 
 	
+	VkSampleCountFlagBits getMaximumSampleCount()
+	{
+		VkPhysicalDeviceProperties properties;
+		vkGetPhysicalDeviceProperties(VulkanDevice::GetVulkanDevice()->GetPhysicalDevice(), &properties);
+		
+		// return maximum sample count supported by BOTH color and depth buffers
+		VkSampleCountFlags counts = properties.limits.framebufferColorSampleCounts & properties.limits.framebufferDepthSampleCounts;
+
+		if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+		if (counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+		if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+		if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
+		if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
+		if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
+
+		return VK_SAMPLE_COUNT_1_BIT;
+	}
 }

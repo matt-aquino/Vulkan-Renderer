@@ -139,6 +139,7 @@ void MaterialScene::DestroyScene(bool isRecreation)
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
 	graphicsPipeline.destroyGraphicsPipeline(device);
+	msaaTex.destroyTexture();
 
 	uint32_t size = static_cast<uint32_t>(commandBuffersList.size());
 	vkFreeCommandBuffers(device, commandPool, size, commandBuffersList.data());
@@ -241,27 +242,29 @@ void MaterialScene::HandleMouseInput(uint32_t buttons, const int x, const int y,
 void MaterialScene::CreateRenderPass(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	VkSampleCountFlagBits counts = HelperFunctions::getMaximumSampleCount();
 
+	// color buffer - multisampled
 	VkAttachmentDescription colorAttachment;
 	colorAttachment.format = swapChain.swapChainImageFormat;
 	colorAttachment.flags = 0;
-	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	colorAttachment.samples = counts;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // clear existing contents
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE; // store contents in memory for use later
 	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // existing contents are undefined; we don't care about them
 	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // we don't care what the previous layout was, since we'll clear it anyway
-	//colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // image will be presented in the swap chain
-	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // image will be presented in the swap chain
+	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; 
+	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; 
 
 	VkAttachmentReference colorAttachmentReference;
-	colorAttachmentReference.attachment = 0; // we have a single attachment, so its index is 0
+	colorAttachmentReference.attachment = 0; 
 	colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // we will use this image as a color buffer
 
+	// depth buffer - multisampled
 	VkAttachmentDescription depthAttachment;
 	depthAttachment.format = VK_FORMAT_D24_UNORM_S8_UINT;
 	depthAttachment.flags = 0;
-	depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	depthAttachment.samples = counts;
 	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -273,6 +276,22 @@ void MaterialScene::CreateRenderPass(const VulkanSwapChain& swapChain)
 	depthAttachmentReference.attachment = 1;
 	depthAttachmentReference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
+	// color resolve image - 1 sample
+	VkAttachmentDescription colorResolve;
+	colorResolve.format = swapChain.swapChainImageFormat;
+	colorResolve.flags = 0;
+	colorResolve.samples = VK_SAMPLE_COUNT_1_BIT; // image gets resolved to 1 sample
+	colorResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colorResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE; // existing contents are undefined; we don't care about them
+	colorResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	colorResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // image will be presented in the swap chain
+
+	VkAttachmentReference colorResolveReference;
+	colorResolveReference.attachment = 2;
+	colorResolveReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
 	VkSubpassDescription subpass;
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	subpass.flags = 0;
@@ -283,7 +302,7 @@ void MaterialScene::CreateRenderPass(const VulkanSwapChain& swapChain)
 	subpass.preserveAttachmentCount = 0;
 	subpass.pPreserveAttachments = nullptr;
 	subpass.pDepthStencilAttachment = &depthAttachmentReference;
-	subpass.pResolveAttachments = nullptr;
+	subpass.pResolveAttachments = &colorResolveReference;
 
 	VkSubpassDependency dependency;
 	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -294,13 +313,13 @@ void MaterialScene::CreateRenderPass(const VulkanSwapChain& swapChain)
 	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 	dependency.dependencyFlags = 0;
 
-	VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment };
+	VkAttachmentDescription attachments[] = { colorAttachment, depthAttachment, colorResolve };
 
 	VkRenderPassCreateInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	renderPassInfo.pNext = nullptr;
 	renderPassInfo.flags = 0;
-	renderPassInfo.attachmentCount = 2;
+	renderPassInfo.attachmentCount = 3;
 	renderPassInfo.pAttachments = attachments;
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
@@ -397,28 +416,25 @@ void MaterialScene::CreateFramebuffers(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	VkExtent2D dim = swapChain.swapChainDimensions;
-
 	graphicsPipeline.framebuffers.resize(swapChain.swapChainImageViews.size());
 
-	HelperFunctions::createImage(dim.width, dim.height, 1, VK_IMAGE_TYPE_2D, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, graphicsPipeline.depthStencilBuffer, graphicsPipeline.depthStencilBufferMemory);
+	CreateFramebufferResources(swapChain);
 
-	HelperFunctions::createImageView(graphicsPipeline.depthStencilBuffer, graphicsPipeline.depthStencilBufferView, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_VIEW_TYPE_2D);
-
-	VkImageView attachments[2];
-	attachments[1] = graphicsPipeline.depthStencilBufferView;
+	VkImageView attachments[3];
 
 	for (size_t i = 0; i < swapChain.swapChainImageViews.size(); i++)
 	{
-		attachments[0] =  swapChain.swapChainImageViews[i];
+		attachments[0] = msaaTex.imageView;
+		attachments[1] = graphicsPipeline.depthStencilBufferView;
+		attachments[2] =  swapChain.swapChainImageViews[i];
 
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 		framebufferInfo.renderPass = graphicsPipeline.renderPass;
-		framebufferInfo.attachmentCount = 2;
+		framebufferInfo.attachmentCount = 3;
 		framebufferInfo.pAttachments = attachments;
-		framebufferInfo.width = swapChain.swapChainDimensions.width;
-		framebufferInfo.height = swapChain.swapChainDimensions.height;
+		framebufferInfo.width = dim.width;
+		framebufferInfo.height = dim.height;
 		framebufferInfo.layers = 1;
 
 		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
@@ -426,74 +442,53 @@ void MaterialScene::CreateFramebuffers(const VulkanSwapChain& swapChain)
 	}
 }
 
+void MaterialScene::CreateFramebufferResources(const VulkanSwapChain& swapChain)
+{
+	VkExtent2D dim = swapChain.swapChainDimensions;
+
+	// color buffer
+	VkSampleCountFlagBits counts = HelperFunctions::getMaximumSampleCount();
+
+	HelperFunctions::createImage(dim.width, dim.height, 1, 1, counts,
+		VK_IMAGE_TYPE_2D, swapChain.swapChainImageFormat, VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, msaaTex.image, msaaTex.imageMemory);
+
+	HelperFunctions::createImageView(msaaTex.image, msaaTex.imageView, 
+		swapChain.swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_VIEW_TYPE_2D, 1);
+
+
+	// depth buffer
+	HelperFunctions::createImage(dim.width, dim.height, 1, 1, counts,
+		VK_IMAGE_TYPE_2D, VK_FORMAT_D24_UNORM_S8_UINT,VK_IMAGE_TILING_OPTIMAL, 
+		VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		graphicsPipeline.depthStencilBuffer, graphicsPipeline.depthStencilBufferMemory);
+
+	HelperFunctions::createImageView(graphicsPipeline.depthStencilBuffer, graphicsPipeline.depthStencilBufferView,
+		VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_VIEW_TYPE_2D, 1);
+
+	graphicsPipeline.isDepthBufferEmpty = false;
+}
+
 void MaterialScene::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	VkSampleCountFlagBits counts = HelperFunctions::getMaximumSampleCount();
+	VkExtent2D dim = swapChain.swapChainDimensions;
 
 #pragma region SETUP
-
-	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = {};
-	VkPipelineVertexInputStateCreateInfo vertexInputState = {};
-	VkPipelineRasterizationStateCreateInfo rasterizerState = {};
-	VkPipelineMultisampleStateCreateInfo multisampleState = {};
-	VkPipelineColorBlendStateCreateInfo colorBlendState = {};
-	VkPipelineColorBlendAttachmentState colorBlendingAttachment = {};
-	VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
-	VkPipelineViewportStateCreateInfo viewportState = {};
-
 	VkVertexInputBindingDescription bindingDescription = ModelVertex::getBindingDescription();
 	std::array<VkVertexInputAttributeDescription, 3> attributeDescription = ModelVertex::getAttributeDescriptions();
+	VkPipelineVertexInputStateCreateInfo vertexInputState = HelperFunctions::initializers::pipelineVertexInputStateCreateInfo(1, bindingDescription, 3, attributeDescription.data());
 
-	// vertex/input assembly state
-	vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputState.vertexBindingDescriptionCount = 1;
-	vertexInputState.pVertexBindingDescriptions = &bindingDescription;
-	vertexInputState.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescription.size());
-	vertexInputState.pVertexAttributeDescriptions = attributeDescription.data();
+	VkPipelineInputAssemblyStateCreateInfo inputAssemblyState = HelperFunctions::initializers::pipelineInputAssemblyStateCreateInfo();
+	VkPipelineRasterizationStateCreateInfo rasterizerState = HelperFunctions::initializers::pipelineRasterizationStateCreateInfo();
+	VkPipelineMultisampleStateCreateInfo multisampleState = HelperFunctions::initializers::pipelineMultisampleStateCreateInfo(counts);
+	multisampleState.sampleShadingEnable = VK_TRUE;
+	multisampleState.minSampleShading = 0.2f;
 
-	inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	inputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	inputAssemblyState.primitiveRestartEnable = VK_FALSE;
 
-	// viewport
-	graphicsPipeline.viewport.x = 0.0f;
-	graphicsPipeline.viewport.y = 0.0f;
-	graphicsPipeline.viewport.minDepth = 0.0f;
-	graphicsPipeline.viewport.maxDepth = 1.0f;
-	graphicsPipeline.viewport.width = (float)swapChain.swapChainDimensions.width;
-	graphicsPipeline.viewport.height = (float)swapChain.swapChainDimensions.height;
-	graphicsPipeline.scissors.offset = { 0, 0 };
-	graphicsPipeline.scissors.extent = swapChain.swapChainDimensions;
-
-	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.viewportCount = 1;
-	viewportState.pViewports = &graphicsPipeline.viewport;
-	viewportState.scissorCount = 1;
-	viewportState.pScissors = &graphicsPipeline.scissors;
-
-	// rasterization
-	rasterizerState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizerState.depthClampEnable = VK_FALSE;
-	rasterizerState.rasterizerDiscardEnable = VK_FALSE;
-	rasterizerState.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizerState.lineWidth = 1.0f;
-	rasterizerState.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizerState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-	rasterizerState.depthBiasEnable = VK_FALSE;
-	rasterizerState.depthBiasConstantFactor = 0.0f;
-	rasterizerState.depthBiasClamp = 0.0f;
-	rasterizerState.depthBiasSlopeFactor = 0.0f;
-
-	// multisampling
-	multisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampleState.sampleShadingEnable = VK_FALSE;
-	multisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-	multisampleState.minSampleShading = 1.0f;
-	multisampleState.pSampleMask = nullptr;
-	multisampleState.alphaToCoverageEnable = VK_FALSE;
-	multisampleState.alphaToOneEnable = VK_FALSE;
-
-	// color blending
+	VkPipelineColorBlendAttachmentState colorBlendingAttachment = {};
 	colorBlendingAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	colorBlendingAttachment.blendEnable = VK_TRUE;
 	colorBlendingAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
@@ -503,24 +498,24 @@ void MaterialScene::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	colorBlendingAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 	colorBlendingAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
-	colorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlendState.logicOpEnable = VK_FALSE;
-	colorBlendState.logicOp = VK_LOGIC_OP_COPY;
-	colorBlendState.attachmentCount = 1;
-	colorBlendState.pAttachments = &colorBlendingAttachment;
-	colorBlendState.blendConstants[0] = 0.0f;
-	colorBlendState.blendConstants[1] = 0.0f;
-	colorBlendState.blendConstants[2] = 0.0f;
-	colorBlendState.blendConstants[3] = 0.0f;
+	VkPipelineColorBlendStateCreateInfo colorBlendState = HelperFunctions::initializers::pipelineColorBlendStateCreateInfo(1, colorBlendingAttachment);
+	VkPipelineDepthStencilStateCreateInfo depthStencilState = HelperFunctions::initializers::pipelineDepthStencilStateCreateInfo(VK_TRUE, VK_TRUE, VK_COMPARE_OP_LESS_OR_EQUAL);
 
-	// depth/stencil testing
-	depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencilState.depthTestEnable = VK_TRUE;
-	depthStencilState.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-	depthStencilState.depthWriteEnable = VK_TRUE;
-	depthStencilState.stencilTestEnable = VK_FALSE;
-	depthStencilState.depthBoundsTestEnable = VK_FALSE;
-	graphicsPipeline.isDepthBufferEmpty = false;
+
+	// viewport
+	graphicsPipeline.viewport.x = 0.0f;
+	graphicsPipeline.viewport.y = 0.0f;
+	graphicsPipeline.viewport.minDepth = 0.0f;
+	graphicsPipeline.viewport.maxDepth = 1.0f;
+	graphicsPipeline.viewport.width = (float)dim.width;
+	graphicsPipeline.viewport.height = (float)dim.height;
+	graphicsPipeline.scissors.offset = { 0, 0 };
+	graphicsPipeline.scissors.extent = dim;
+
+	VkPipelineViewportStateCreateInfo viewportState = HelperFunctions::initializers::pipelineViewportStateCreateInfo(1, 1, 0);
+	viewportState.pViewports = &graphicsPipeline.viewport;
+	viewportState.pScissors = &graphicsPipeline.scissors;
+	
 
 	VkDescriptorSetLayout setLayouts[] = { graphicsPipeline.descriptorSetLayout, objects[0].descriptorSetLayout, objects[0].material->descriptorSetLayout};
 	VkPipelineLayoutCreateInfo layoutInfo = {};
@@ -542,19 +537,12 @@ void MaterialScene::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	auto fragShaderCode = HelperFunctions::readShaderFile(SHADERPATH"MaterialScene/scene_frag.spv");
 	VkShaderModule fragShaderModule = HelperFunctions::CreateShaderModules(fragShaderCode);
 
-	VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
-	vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertShaderStageInfo.module = vertShaderModule;
-	vertShaderStageInfo.pName = "main";
+	VkPipelineShaderStageCreateInfo shaderStages[] = 
+	{ 
+		HelperFunctions::initializers::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT, vertShaderModule),
+		HelperFunctions::initializers::pipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderModule)
+	};
 
-	VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
-	fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragShaderStageInfo.module = fragShaderModule;
-	fragShaderStageInfo.pName = "main";
-
-	VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
 	VkGraphicsPipelineCreateInfo pipelineInfo = {};
 	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -743,59 +731,62 @@ void MaterialScene::RecordCommandBuffers(uint32_t index)
 
 void MaterialScene::DrawUI(uint32_t index)
 {
+	ui->NewUIFrame();
+
+	ui->NewWindow("Frame Rate");
+	ui->DisplayFPS();
+	ui->EndWindow();
+
 	if (!isCameraMoving)
 	{
-		ui->NewUIFrame();
+		static bool showDemoWindow = false;
+
+		if (showDemoWindow)
+			ui->ShowDemoWindow();
+
+		ui->NewWindow("Test Window");
 		{
-			static bool showDemoWindow = false;
+			ui->NewCheckBox("Show Demo Window", &showDemoWindow);
+			ui->NewSliderVec4("Clear Color", &clearColor, 0.0f, 1.0f);
 
-			if (showDemoWindow)
-				ui->ShowDemoWindow();
-
-			ui->NewWindow("Test Window");
+			// select individual spheres
+			if (ui->NewTreeNode("Spheres"))
 			{
-				ui->NewCheckBox("Show Demo Window", &showDemoWindow);
-				ui->NewSliderVec4("Clear Color", &clearColor, 0.0f, 1.0f);
-
-				// select individual spheres
-				if (ui->NewTreeNode("Spheres"))
+				for (int i = 0; i < objects.size(); i++)
 				{
-					for (int i = 0; i < objects.size(); i++)
+					bool materialChanged = false;
+
+					if (ui->NewTreeNode((void*)(intptr_t)i, "Sphere %i", i + 1))
 					{
-						bool materialChanged = false;
+						glm::vec3* amb = &objects[i].material->ubo.ambient;
+						glm::vec3* dif = &objects[i].material->ubo.diffuse;
+						glm::vec3* spc = &objects[i].material->ubo.specular;
+						float* shine = &objects[i].material->ubo.shininess;
 
-						if (ui->NewTreeNode((void*)(intptr_t)i, "Sphere %i", i + 1))
-						{
-							glm::vec3* amb = &objects[i].material->ubo.ambient;
-							glm::vec3* dif = &objects[i].material->ubo.diffuse;
-							glm::vec3* spc = &objects[i].material->ubo.specular;
-							float* shine = &objects[i].material->ubo.shininess;
+						if (ui->NewSliderVec3("Ambient Color", amb, 0.0f, 1.0f))
+							materialChanged = true;
 
-							if (ui->NewSliderVec3("Ambient Color", amb, 0.0f, 1.0f))
-								materialChanged = true;
+						if (ui->NewSliderVec3("Diffuse Color", dif, 0.0f, 1.0f))
+							materialChanged = true;
 
-							if (ui->NewSliderVec3("Diffuse Color", dif, 0.0f, 1.0f))
-								materialChanged = true;
+						if (ui->NewSliderVec3("Specular Color", spc, 0.0f, 1.0f))
+							materialChanged = true;
 
-							if (ui->NewSliderVec3("Specular Color", spc, 0.0f, 1.0f))
-								materialChanged = true;
+						if (ui->NewSliderFloat("Shininess", shine, 1.0f, 256.0f))
+							materialChanged = true;
 
-							if (ui->NewSliderFloat("Shininess", shine, 1.0f, 256.0f))
-								materialChanged = true;
-
-							if (materialChanged)
-								objects[i].material->updateMaterial();
+						if (materialChanged)
+							objects[i].material->updateMaterial();
 							
-							ui->EndTreeNode();
-						}
+						ui->EndTreeNode();
 					}
-					ui->EndTreeNode();
 				}
+				ui->EndTreeNode();
 			}
-			ui->EndWindow();
 		}
-		ui->EndFrame();
+		ui->EndWindow();
 	}
 
+	ui->EndFrame();
 	ui->RenderFrame(commandBuffersList[index], index);
 }

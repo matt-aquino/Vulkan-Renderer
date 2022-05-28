@@ -38,6 +38,7 @@ namespace HelperFunctions
 		VkWriteDescriptorSet writeDescriptorSet(VkDescriptorSet& dstSet, const VkDescriptorBufferInfo* bufferInfo, uint32_t dstBinding = 0, VkDescriptorType bufferType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, const VkBufferView* bufferView = nullptr);
 		VkWriteDescriptorSet writeDescriptorSet(VkDescriptorSet& dstSet, const VkDescriptorImageInfo* imageInfo, uint32_t dstBinding = 0);
 	}
+
 	// commands
 	VkCommandBuffer beginSingleTimeCommands(const VkCommandPool& commandPool);
 	void endSingleTimeCommands(VkCommandBuffer cmdBuffer, VkQueue queue, const VkCommandPool& commandPool);
@@ -48,13 +49,16 @@ namespace HelperFunctions
 	void copyBufferToImage(const VkCommandPool& commandPool, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t depth);
 
 	// images
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, const VkCommandPool& commandPool, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage);
-	void createImage(uint32_t width, uint32_t height, uint32_t depth, VkImageType imageType, VkFormat format, VkImageTiling tiling, 
+	void transitionImageLayout(VkImage image, VkFormat format, uint32_t mipLevels, VkImageLayout oldLayout, VkImageLayout newLayout, const VkCommandPool& commandPool, VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage);
+	void createImage(uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, VkSampleCountFlagBits sampleCount, VkImageType imageType, VkFormat format, VkImageTiling tiling, 
 		VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& memory);
-	void createImageView(VkImage& image, VkImageView& imageView, VkFormat format, VkImageAspectFlags aspectFlags, VkImageViewType viewType);
-	void createSampler(VkSampler& sampler, VkFilter filter, VkSamplerAddressMode addrMode, VkBool32 enableAnisotropy = VK_FALSE, float maxAnisotropy = 0.0f, float minLod = 0.0f, float maxLod = 1.0f, VkBorderColor borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE);
+	void createImageView(VkImage& image, VkImageView& imageView, VkFormat format, VkImageAspectFlags aspectFlags, VkImageViewType viewType, uint32_t mipLevels);
+	void createSampler(VkSampler& sampler, VkFilter filter, VkSamplerAddressMode addrMode, VkBool32 enableAnisotropy = VK_FALSE, float maxAnisotropy = 0.0f, float minLod = 0.0f, int32_t mipLevels = 1, VkBorderColor borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE);
+	void generateImageMipmaps(VkImage image, VkFormat format, uint32_t width, uint32_t height, uint32_t depth, uint32_t mipLevels, const VkCommandPool& commandPool);
 
 	// pipeline
 	VkShaderModule CreateShaderModules(const std::vector<char>& code);
 	std::vector<char> readShaderFile(const std::string& file);
+
+	VkSampleCountFlagBits getMaximumSampleCount();
 }
