@@ -340,7 +340,7 @@ void MaterialScene::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	uboBinding.binding = 0;
 	uboBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	uboBinding.descriptorCount = 1;
-	uboBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uboBinding.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
 	uboBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
@@ -605,14 +605,14 @@ void MaterialScene::CreateObjects()
 		objects[i] = BasicShapes::createSphere();
 		objects[i].setMaterialWithPreset(static_cast<MaterialPresets>(i));
 
-
+		// move to the next row
 		if (i != 0 && i % 9 == 0)
 		{
 			row++;
 			col = 0;
 		}
 
-		glm::vec3 pos = glm::vec3(row, 0.0f, col);
+		glm::vec3 pos = glm::vec3(col, 0.0f, -row);
 
 		glm::mat4 model = glm::translate(pos) * glm::scale(glm::mat4(1.0f), glm::vec3(0.3f));
 		objects[i].setModelMatrix(model);
@@ -628,7 +628,7 @@ void MaterialScene::CreateUniforms(const VulkanSwapChain& swapChain)
 	VkExtent2D dim = swapChain.swapChainDimensions;
 	float aspectRatio = float(dim.width) / float(dim.height);
 
-	light = SpotLight(glm::vec3(1.0, 1.0, 1.0));
+	light = SpotLight(glm::vec3(1.0, 1.0, 1.0)); 
 
 	uboScene.proj = glm::perspective(glm::radians(camera->GetFOV()), aspectRatio, 0.1f, 1000.0f);
 	uboScene.proj[1][1] *= -1;
@@ -656,12 +656,12 @@ void MaterialScene::UpdateUniforms(uint32_t index)
 		timer += dt;
 
 	// oscillate between -radius and +radius at speed
-	float speed = 100.0f;
-	float radius = 12.0f;
+	float speed = 10.0f;
+	float radius = 5.0f;
 
 	// move light in a circle
-	glm::vec3 lightPos = glm::vec3(cos(glm::radians(timer * speed)), 0.0f, sin(glm::radians(timer * speed))) * radius;
-	lightPos.y = 0.5f;
+	glm::vec3 lightPos = glm::vec3(radius * sin(glm::radians(timer * speed)) + 4.0f, 1.0f, -1.0f);
+	
 	light.setLightPos(lightPos);
 
 	glm::mat4 cameraView = camera->GetViewMatrix();
@@ -731,10 +731,14 @@ void MaterialScene::RecordCommandBuffers(uint32_t index)
 
 void MaterialScene::DrawUI(uint32_t index)
 {
+	static Camera* camera = Camera::GetCamera();
+	glm::vec3 cameraPos = camera->GetCameraPosition();
+
 	ui->NewUIFrame();
 
-	ui->NewWindow("Frame Rate");
+	ui->NewWindow("Application");
 	ui->DisplayFPS();
+	ui->DrawSliderVec3("Camera Position", &cameraPos, -20.0f, 20.0f);
 	ui->EndWindow();
 
 	if (!isCameraMoving)
@@ -744,10 +748,10 @@ void MaterialScene::DrawUI(uint32_t index)
 		if (showDemoWindow)
 			ui->ShowDemoWindow();
 
-		ui->NewWindow("Test Window");
+		ui->NewWindow("Scene Data");
 		{
-			ui->NewCheckBox("Show Demo Window", &showDemoWindow);
-			ui->NewSliderVec4("Clear Color", &clearColor, 0.0f, 1.0f);
+			ui->DrawCheckBox("Show Demo Window", &showDemoWindow);
+			ui->DrawSliderVec4("Clear Color", &clearColor, 0.0f, 1.0f);
 
 			// select individual spheres
 			if (ui->NewTreeNode("Spheres"))
@@ -763,16 +767,16 @@ void MaterialScene::DrawUI(uint32_t index)
 						glm::vec3* spc = &objects[i].material->ubo.specular;
 						float* shine = &objects[i].material->ubo.shininess;
 
-						if (ui->NewSliderVec3("Ambient Color", amb, 0.0f, 1.0f))
+						if (ui->DrawSliderVec3("Ambient Color", amb, 0.0f, 1.0f))
 							materialChanged = true;
 
-						if (ui->NewSliderVec3("Diffuse Color", dif, 0.0f, 1.0f))
+						if (ui->DrawSliderVec3("Diffuse Color", dif, 0.0f, 1.0f))
 							materialChanged = true;
 
-						if (ui->NewSliderVec3("Specular Color", spc, 0.0f, 1.0f))
+						if (ui->DrawSliderVec3("Specular Color", spc, 0.0f, 1.0f))
 							materialChanged = true;
 
-						if (ui->NewSliderFloat("Shininess", shine, 1.0f, 256.0f))
+						if (ui->DrawSliderFloat("Shininess", shine, 1.0f, 256.0f))
 							materialChanged = true;
 
 						if (materialChanged)

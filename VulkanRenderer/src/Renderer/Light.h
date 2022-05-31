@@ -8,9 +8,8 @@ public:
 	Light() {}
 	virtual ~Light() {}
 
-	virtual glm::mat4 getLightView() = 0;
-	virtual glm::vec3 getLightPos() = 0;
-	virtual void setLightPos(glm::vec3 newPos) = 0;
+	glm::vec3 getLightPos();
+	virtual void setLightPos(glm::vec3 newPos);
 
 	glm::vec3 getLightColor();
 	void setLightColor(glm::vec3 col);
@@ -28,9 +27,11 @@ protected :
 		AREA
 	};
 
-	LightType type = LightType::NONE;
+	glm::vec3 position;
 	glm::vec3 color = glm::vec3(1.0f);
 	float intensity = 1.0f;
+	LightType type = LightType::NONE;
+
 	glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
 };
 
@@ -42,11 +43,9 @@ public:
 	SpotLight(glm::vec3 position, glm::vec3 target = glm::vec3(0.0f), glm::vec3 col = glm::vec3(1.0f), float n = 1.0f, float f = 100.0f);
 	virtual ~SpotLight();
 
+	void setLightPos(glm::vec3 newPos) override;
 	glm::mat4 getLightProj();
-	virtual glm::mat4 getLightView() override;
-	virtual glm::vec3 getLightPos() override;
-
-	virtual void setLightPos(glm::vec3 newPos) override;
+	glm::mat4 getLightView();
 
 	float getNearPlane();
 	float getFarPlane();
@@ -66,11 +65,6 @@ public:
 	DirectionalLight(float size = 10.0f, glm::vec3 target = glm::vec3(0.0f), glm::vec3 col = glm::vec3(1.0f));
 	virtual ~DirectionalLight();
 
-	virtual glm::mat4 getLightView() override;
-	virtual glm::vec3 getLightPos() override;
-
-	virtual void setLightPos(glm::vec3 newPos) override;
-
 private:
 	glm::mat4 proj = glm::mat4(1.0f);
 	glm::mat4 view = glm::mat4(1.0f);
@@ -85,10 +79,6 @@ public:
 	PointLight(glm::vec3 position, glm::vec3 col = glm::vec3(1.0f));
 	virtual ~PointLight();
 
-	virtual glm::mat4 getLightView() override;
-	virtual glm::vec3 getLightPos() override;
-
-	virtual void setLightPos(glm::vec3 newPos) override;
 
 private:
 	glm::vec3 pos = glm::vec3(0.0f);
@@ -108,10 +98,6 @@ public:
 	AreaLight();
 	virtual ~AreaLight();
 
-	virtual glm::mat4 getLightView() override;
-	virtual glm::vec3 getLightPos() override;
-
-	virtual void setLightPos(glm::vec3 newPos) override;
 
 private:
 	AreaType areaType = AreaType::RECTANGLE;

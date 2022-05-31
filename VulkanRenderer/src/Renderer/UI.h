@@ -21,17 +21,17 @@ public:
 
 	bool NewWindow(const char* name);
 	void EndWindow();
-
-	void NewText(const char* text);
-	bool NewCheckBox(const char* label, bool* value);
+	
+	void DrawUIText(const char* text);
+	bool DrawCheckBox(const char* label, bool* value);
 
 	void ShowDemoWindow();
 	void DisplayFPS();
 
-	bool NewSliderFloat(const char* name, float* value, float minValue, float maxValue);
-	bool NewSliderVec2(const char* name, glm::vec2* values, float minValue, float maxValue);
-	bool NewSliderVec3(const char* name, glm::vec3* values, float minValue, float maxValue);
-	bool NewSliderVec4(const char* name, glm::vec4* values, float minValue, float maxValue);
+	bool DrawSliderFloat(const char* name, float* value, float minValue, float maxValue);
+	bool DrawSliderVec2(const char* name, glm::vec2* values, float minValue, float maxValue);
+	bool DrawSliderVec3(const char* name, glm::vec3* values, float minValue, float maxValue);
+	bool DrawSliderVec4(const char* name, glm::vec4* values, float minValue, float maxValue);
 
 	bool NewTreeNode(const char* name);
 	bool NewTreeNode(const void* ptr, const char* label, ...);

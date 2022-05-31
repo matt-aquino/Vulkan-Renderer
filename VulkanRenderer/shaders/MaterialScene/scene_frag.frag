@@ -1,11 +1,17 @@
 #version 460 core
 
-layout(location = 0) in vec3 inWorldNormal;
-layout(location = 1) in vec3 inVertPos;
-layout(location = 2) in vec3 inLightPos;
-layout(location = 3) in vec3 inViewPos;
+layout(location = 0) in vec3 inFragWorldNormal;
+layout(location = 1) in vec3 inFragWorld;
 
 layout(location = 0) out vec4 fragColor;
+
+layout(set = 0, binding = 0) uniform UBO
+{
+	mat4 proj;
+	mat4 view;
+	vec3 lightPos;
+	vec3 viewPos;
+};
 
 vec3 lightColor = vec3(1.0);
 
@@ -33,29 +39,26 @@ layout(set = 2, binding = 0) uniform Material
 	int dummy;					// Suppress padding warning.
 } mat;
 
-vec3 blinnPhong(vec3 lightDir, vec3 viewDir, vec3 normal, vec3 diffuseColor, vec3 specularColor, float shininess)
-{
-	vec3 brdf = diffuseColor;
-	vec3 halfway = normalize(viewDir + lightDir);
-	float spec = max(dot(halfway, normal), 0.0);
-	brdf += pow(spec, shininess) * specularColor;
-	return brdf;
-}
-
 void main()
 {
-	vec3 lightDir = normalize(inLightPos - inVertPos);
-	vec3 viewDir = normalize(inViewPos - inVertPos);
-	vec3 normal = normalize(inWorldNormal);
+	vec3 lightDir = lightPos - inFragWorld;
+	vec3 view = normalize(viewPos - inFragWorld);
+	vec3 normal = normalize(inFragWorldNormal);
 
-	vec3 radiance = mat.ambient;
-	float irradiance = max(dot(lightDir, normal), 0.0);
+	float attenuation = 1.0f / dot(lightDir, lightDir);
+	lightDir = normalize(lightDir); // normalize after attenuation so values are correct
 
-	if (irradiance > 0.0)
-	{
-		vec3 brdf = blinnPhong(lightDir, viewDir, normal, mat.diffuse, mat.specular, mat.shininess);
-		radiance += brdf * irradiance * lightColor;
-	}
+	// diffuse
+	float lambertian = max(dot(lightDir, normal), 0.0);
+	vec3 lightIntensity = lightColor * attenuation;
+	vec3 diffuseLight = lightIntensity * lambertian;
 
-	fragColor = vec4(radiance, 1.0);
+
+	// blinn phong
+	vec3 halfAngle = normalize(lightDir + view);
+	float blinn = pow(max(dot(normal, halfAngle), 0.0), mat.shininess);
+	vec3 specularLight = lightIntensity * blinn * mat.specular;
+
+
+	fragColor = vec4(mat.ambient + (diffuseLight * mat.diffuse) + specularLight, 1.0);
 }

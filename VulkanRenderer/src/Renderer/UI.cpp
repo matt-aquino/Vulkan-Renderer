@@ -180,12 +180,13 @@ void UI::EndWindow()
 	ImGui::End();
 }
 
-void UI::NewText(const char* text)
+
+void UI::DrawUIText(const char* text)
 {
 	ImGui::Text(text);
 }
 
-bool UI::NewCheckBox(const char* label, bool* value)
+bool UI::DrawCheckBox(const char* label, bool* value)
 {
 	return ImGui::Checkbox(label, value);
 }
@@ -201,22 +202,22 @@ void UI::DisplayFPS()
 	ImGui::Text("FPS: %2f", io.Framerate);
 }
 
-bool UI::NewSliderFloat(const char* name, float* value, float minValue, float maxValue)
+bool UI::DrawSliderFloat(const char* name, float* value, float minValue, float maxValue)
 {
 	return ImGui::SliderFloat(name, value, minValue, maxValue);
 }
 
-bool UI::NewSliderVec2(const char* name, glm::vec2* values, float minValue, float maxValue)
+bool UI::DrawSliderVec2(const char* name, glm::vec2* values, float minValue, float maxValue)
 {
 	return ImGui::SliderFloat2(name, &values->x, minValue, maxValue);
 }
 
-bool UI::NewSliderVec3(const char* name, glm::vec3* values, float minValue, float maxValue)
+bool UI::DrawSliderVec3(const char* name, glm::vec3* values, float minValue, float maxValue)
 {
 	return ImGui::SliderFloat3(name, &values->x, minValue, maxValue);
 }
 
-bool UI::NewSliderVec4(const char* name, glm::vec4* values, float minValue, float maxValue)
+bool UI::DrawSliderVec4(const char* name, glm::vec4* values, float minValue, float maxValue)
 {
 	return ImGui::SliderFloat4(name, &values->x, minValue, maxValue);
 }

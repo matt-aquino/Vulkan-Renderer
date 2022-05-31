@@ -6,6 +6,16 @@ void Light::setLightColor(glm::vec3 col)
 	color = col;
 }
 
+glm::vec3 Light::getLightPos()
+{
+	return position;
+}
+
+void Light::setLightPos(glm::vec3 newPos)
+{
+	position = newPos;
+}
+
 glm::vec3 Light::getLightColor()
 {
 	return color;
@@ -57,10 +67,6 @@ glm::mat4 SpotLight::getLightView()
 	return view;
 }
 
-glm::vec3 SpotLight::getLightPos()
-{
-	return pos;
-}
 
 float SpotLight::getNearPlane()
 {
@@ -98,20 +104,6 @@ DirectionalLight::~DirectionalLight()
 }
 
 
-
-glm::mat4 DirectionalLight::getLightView()
-{
-	return view;
-}
-
-glm::vec3 DirectionalLight::getLightPos()
-{
-	return glm::vec3(distance);
-}
-void DirectionalLight::setLightPos(glm::vec3 newPos)
-{
-
-}
 #pragma endregion
 
 #pragma region POINTLIGHT
@@ -132,19 +124,6 @@ PointLight::~PointLight()
 {
 }
 
-glm::mat4 PointLight::getLightView()
-{
-	return glm::mat4(1.0f);
-}
-
-glm::vec3 PointLight::getLightPos()
-{
-	return pos;
-}
-void PointLight::setLightPos(glm::vec3 newPos)
-{
-	pos = newPos;
-}
 #pragma endregion
 
 #pragma region AREALIGHT
@@ -157,17 +136,5 @@ AreaLight::~AreaLight()
 {
 }
 
-glm::mat4 AreaLight::getLightView()
-{
-	return glm::mat4(1.0f);
-}
 
-glm::vec3 AreaLight::getLightPos()
-{
-	return pos;
-}
-void AreaLight::setLightPos(glm::vec3 newPos)
-{
-	pos = newPos;
-}
 #pragma endregion
