@@ -15,9 +15,9 @@
 */
 
 #include "Renderer.h"
-#include "Camera.h"
 
-#include "Scenes/Materials.h"
+#include "Scenes/ShadowMap.h"
+
 SDL_Window* Renderer::appWindow = nullptr;
 VkInstance Renderer::instance = VK_NULL_HANDLE;
 
@@ -27,11 +27,11 @@ Renderer::Renderer()
     CreateVKInstance();
     CreateVKSurface();
     VulkanDevice::GetVulkanDevice()->CreateVulkanDevice(instance, renderSurface);
-
+    
     CreateSwapChain();
     CreateImages();
 
-    MaterialScene* scene = new MaterialScene("Materials Example", vulkanSwapChain);
+    ShadowMap* scene = new ShadowMap("Shadow Mapping", vulkanSwapChain);
     scenesList.push_back(scene);
 }
 
@@ -54,7 +54,7 @@ void Renderer::CreateAppWindow()
         throw std::runtime_error("Could not create SDL window.");
 
     SDL_SetWindowResizable(appWindow, SDL_TRUE);
-    SDL_SetRelativeMouseMode(SDL_FALSE);
+    SDL_SetRelativeMouseMode(SDL_TRUE);
 
     // Get WSI extensions from SDL (we can add more if we like - we just can't remove these)
     if (!SDL_Vulkan_GetInstanceExtensions(appWindow, &extensionCount, NULL))
@@ -127,9 +127,8 @@ void Renderer::RunApp()
     bool isCameraMoving = false;
 
     // Poll for user input.
-    while (isAppRunning) 
-    {
-        float mouseWheelX = 0, mouseWheelY = 0;
+    while (isAppRunning) {
+
         SDL_Event event;
         while (SDL_PollEvent(&event)) 
         {
@@ -144,6 +143,10 @@ void Renderer::RunApp()
                 case SDL_KEYDOWN:
                     switch (event.key.keysym.scancode)
                     {
+                        case SDL_SCANCODE_ESCAPE:
+                            isAppRunning = false;
+                            break;
+
                         case SDL_SCANCODE_LEFT:
 
                             if (sceneIndex == 0)
@@ -176,11 +179,6 @@ void Renderer::RunApp()
                     }
                     break;
 
-                // user scrolled mouse wheel
-                case SDL_MOUSEWHEEL:
-                    mouseWheelX = event.wheel.x;
-                    mouseWheelY = event.wheel.y;
-                    break;
 
                 default:
                     // Do nothing.
@@ -194,16 +192,15 @@ void Renderer::RunApp()
 
         // handle user input before next frame
         int currentMouseX, currentMouseY;
-        uint32_t buttons;
 
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
-        buttons = SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
+        SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
         
         // don't run the scene while the scene is minimized
         if (!windowMinimized)
         {
             scenesList[sceneIndex]->HandleKeyboardInput(keystates, dt);
-            scenesList[sceneIndex]->HandleMouseInput(buttons, currentMouseX, currentMouseY, mouseWheelX, mouseWheelY);
+            scenesList[sceneIndex]->HandleMouseInput(currentMouseX, currentMouseY);
 
             returnValues = scenesList[sceneIndex]->PresentScene(vulkanSwapChain);
             
@@ -223,6 +220,7 @@ void Renderer::CleanUp()
     // Clear all scenes
     for (VulkanScene* scene : scenesList)
     {
+        scene->DestroyScene(false);
         delete scene;
     }
 
@@ -378,8 +376,30 @@ void Renderer::CreateImages()
     vulkanSwapChain.swapChainImageViews.resize(imageListSize);
     for (size_t i = 0; i < imageListSize; i++)
     {
-        HelperFunctions::createImageView(vulkanSwapChain.swapChainImages[i], vulkanSwapChain.swapChainImageViews[i],
-            vulkanSwapChain.swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_VIEW_TYPE_2D, 1);
+        VkImageViewCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        createInfo.image = vulkanSwapChain.swapChainImages[i];
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D; // images can be either 1D, 2D, 3D, and cubemaps
+        createInfo.format = vulkanSwapChain.swapChainImageFormat;
+
+        // color channels
+        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+        // subresourceRange describe the image's purpose and which part should be accessed
+        // we will be using these as color targets with no mipmapping or layers
+        // layers are useful for stereoscopic 3D apps (VR and such)
+        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1;
+
+        VkResult result = vkCreateImageView(VulkanDevice::GetVulkanDevice()->logicalDevice, &createInfo, nullptr, &vulkanSwapChain.swapChainImageViews[i]);
+        if (result != VK_SUCCESS)
+            throw std::runtime_error("Failed to create image views!");
     }
 }
 
