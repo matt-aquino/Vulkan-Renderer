@@ -1,8 +1,8 @@
 #version 460
 
-layout(location = 0) in vec3 position;
+layout(location = 0) in vec4 position;
 layout(location = 1) in vec2 texcoord;
-layout(location = 2) in vec3 normal;
+layout(location = 2) in vec4 normal;
 
 layout(binding = 0) uniform UniformBufferObject
 {
@@ -20,9 +20,9 @@ layout(location = 3) out vec2 outTexcoord;
 
 void main()
 {
-	gl_Position = ubo.projection * ubo.view * ubo.model * vec4(position, 1.0);
-	fragPos = vec3(ubo.model * vec4(position, 1.0f));
+	gl_Position = ubo.projection * ubo.view * ubo.model * position;
+	fragPos = vec3(ubo.model * position);
 	viewDir = normalize(ubo.cameraPosition - fragPos);
-	outNormal = normalize(vec3(ubo.projection * ubo.view * ubo.model * vec4(normal, 1.0f)));
+	outNormal = normalize(vec3(ubo.projection * ubo.view * ubo.model * normal));
 	outTexcoord = texcoord;
 }

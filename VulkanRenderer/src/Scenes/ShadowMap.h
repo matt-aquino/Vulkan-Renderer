@@ -1,5 +1,6 @@
 #pragma once
 #include "VulkanScene.h"
+#include "Renderer/UI.h"
 
 // Shadow Mapping requires us to render the scene offscreen from a light's perspective
 // and determine which areas of our scene are occluded (light is blocked)
@@ -18,7 +19,7 @@ public:
 	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
 
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
-	virtual void HandleMouseInput(const int x, const int y) override;
+	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
 private:
 
@@ -28,15 +29,18 @@ private:
 	void CreateSceneDescriptorSets(const VulkanSwapChain& swapChain);
 	void CreateSceneFramebuffers(const VulkanSwapChain& swapChain);
 
-	// shadow pass only makes use of a depth attachment 
+	void CreateDebugResources(const VulkanSwapChain& swapChain);
+
 	void CreateShadowRenderPass(const VulkanSwapChain& swapChain);
+	void CreateShadowResources();
 	void CreateShadowDescriptorSets(const VulkanSwapChain& swapChain);
 	void CreateShadowFramebuffers(const VulkanSwapChain& swapChain);
-	
+
+
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);
 
 	void CreateUniforms(const VulkanSwapChain& swapChain);
-	void UpdateMeshes(float time);
+	void CreateSceneObjects();
 	void UpdateUniforms(uint32_t index);
 
 	void CreateCommandBuffers();
@@ -44,20 +48,24 @@ private:
 	void RecordCommandBuffers(uint32_t index);
 
 	// scene data
-	VulkanGraphicsPipeline graphicsPipeline, debugPipeline, quadPipeline;
+	VulkanGraphicsPipeline graphicsPipeline, debugPipeline;
+	Texture msaaTex, debugTex;
 
-	int debug = 0; // toggle between camera view and light view
-	bool animate = true;
-	SpotLight light;
+	bool isCameraMoving = false;
+
+	SpotLight light = {};
+
 	struct // scene uniform buffer data
 	{
 		glm::mat4 proj;
 		glm::mat4 view;
-		glm::mat4 depthBiasVP;
-		glm::vec3 lightPos;
+		glm::mat4 lightVP;
+		glm::vec4 lightPos;
 	} uboScene;
 
+	Mesh cube, ground, monkey, sphere;
 	size_t currentFrame = 0;
+
 	// shadow mapping data
 	float depthBiasConstant = 1.25f; // constant depth bias factor, always applied
 	float depthBiasSlope = 1.75f;    // slope depth bias factor, applied depending on polygon's slope
@@ -65,10 +73,14 @@ private:
 
 	struct // shadow pass uniform data
 	{
-		glm::mat4 depthViewProj;
+		glm::mat4 viewProj;
 	} uboShadow;
 
 	VulkanGraphicsPipeline shadowPipeline;
 	VkSampler shadowSampler;
-	VkFormat depthFormat = VK_FORMAT_D16_UNORM;
+	VkFormat depthFormat = VK_FORMAT_D32_SFLOAT_S8_UINT;
+
+	// UI
+	UI* ui = nullptr;
+	void DrawUI(uint32_t frameIndex);
 };

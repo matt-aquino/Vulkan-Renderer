@@ -16,7 +16,7 @@
 
 #include "Renderer.h"
 
-#include "Scenes/ShadowMap.h"
+#include "Scenes/DeferredRendering.h"
 
 SDL_Window* Renderer::appWindow = nullptr;
 VkInstance Renderer::instance = VK_NULL_HANDLE;
@@ -31,7 +31,7 @@ Renderer::Renderer()
     CreateSwapChain();
     CreateImages();
 
-    ShadowMap* scene = new ShadowMap("Shadow Mapping", vulkanSwapChain);
+    DeferredRendering* scene = new DeferredRendering("Deferred Rendering", vulkanSwapChain);
     scenesList.push_back(scene);
 }
 
@@ -54,7 +54,7 @@ void Renderer::CreateAppWindow()
         throw std::runtime_error("Could not create SDL window.");
 
     SDL_SetWindowResizable(appWindow, SDL_TRUE);
-    SDL_SetRelativeMouseMode(SDL_TRUE);
+    SDL_SetRelativeMouseMode(SDL_FALSE);
 
     // Get WSI extensions from SDL (we can add more if we like - we just can't remove these)
     if (!SDL_Vulkan_GetInstanceExtensions(appWindow, &extensionCount, NULL))
@@ -92,7 +92,7 @@ void Renderer::CreateVKInstance()
     appInfo.applicationVersion = 1;
     appInfo.pEngineName = "LunarG SDK";
     appInfo.engineVersion = 1;
-    appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 2, 0);
+    appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 3, 211);
 
     // VkInstanceCreateInfo is where the programmer specifies the layers and/or extensions that
     // are needed.
@@ -126,6 +126,8 @@ void Renderer::RunApp()
     Camera* const camera = Camera::GetCamera();
     bool isCameraMoving = false;
 
+    float mouseWheelX = 0.0f, mouseWheelY = 0.0f;
+
     // Poll for user input.
     while (isAppRunning) {
 
@@ -143,10 +145,6 @@ void Renderer::RunApp()
                 case SDL_KEYDOWN:
                     switch (event.key.keysym.scancode)
                     {
-                        case SDL_SCANCODE_ESCAPE:
-                            isAppRunning = false;
-                            break;
-
                         case SDL_SCANCODE_LEFT:
 
                             if (sceneIndex == 0)
@@ -179,6 +177,10 @@ void Renderer::RunApp()
                     }
                     break;
 
+                case SDL_MOUSEWHEEL:
+                    mouseWheelX = event.wheel.x;
+                    mouseWheelY = event.wheel.y;
+                    break;
 
                 default:
                     // Do nothing.
@@ -194,13 +196,13 @@ void Renderer::RunApp()
         int currentMouseX, currentMouseY;
 
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
-        SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
+        uint32_t buttons = SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
         
         // don't run the scene while the scene is minimized
         if (!windowMinimized)
         {
             scenesList[sceneIndex]->HandleKeyboardInput(keystates, dt);
-            scenesList[sceneIndex]->HandleMouseInput(currentMouseX, currentMouseY);
+            scenesList[sceneIndex]->HandleMouseInput(buttons, currentMouseX, currentMouseY, mouseWheelX, mouseWheelY);
 
             returnValues = scenesList[sceneIndex]->PresentScene(vulkanSwapChain);
             
@@ -220,7 +222,6 @@ void Renderer::CleanUp()
     // Clear all scenes
     for (VulkanScene* scene : scenesList)
     {
-        scene->DestroyScene(false);
         delete scene;
     }
 

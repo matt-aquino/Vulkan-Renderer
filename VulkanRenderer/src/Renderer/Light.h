@@ -5,10 +5,9 @@
 class Light
 {
 public:
-	Light() {}
+	Light();
 	virtual ~Light() {}
 
-	glm::vec3 getLightPos();
 	virtual void setLightPos(glm::vec3 newPos);
 
 	glm::vec3 getLightColor();
@@ -43,6 +42,7 @@ public:
 	SpotLight(glm::vec3 position, glm::vec3 target = glm::vec3(0.0f), glm::vec3 col = glm::vec3(1.0f), float n = 1.0f, float f = 100.0f);
 	virtual ~SpotLight();
 
+	glm::vec3 getLightPos() { return position; }
 	void setLightPos(glm::vec3 newPos) override;
 	glm::mat4 getLightProj();
 	glm::mat4 getLightView();
@@ -52,7 +52,6 @@ public:
 private:
 	glm::mat4 proj = glm::mat4(1.0f);
 	glm::mat4 view = glm::mat4(1.0f);
-	glm::vec3 pos = glm::vec3(0.0f);
 	glm::vec3 target = glm::vec3(0.0f);
 	float nearPlane = 1.0f;
 	float farPlane = 100.0f;
@@ -79,9 +78,8 @@ public:
 	PointLight(glm::vec3 position, glm::vec3 col = glm::vec3(1.0f));
 	virtual ~PointLight();
 
-
+	glm::vec3 getLightPos() { return position; }
 private:
-	glm::vec3 pos = glm::vec3(0.0f);
 };
 
 struct AreaLight : public Light
@@ -97,9 +95,8 @@ public:
 
 	AreaLight();
 	virtual ~AreaLight();
-
+	glm::vec3 getLightPos() { return position; }
 
 private:
 	AreaType areaType = AreaType::RECTANGLE;
-	glm::vec3 pos = glm::vec3(pos);
 };

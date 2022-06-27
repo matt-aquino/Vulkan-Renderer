@@ -25,6 +25,7 @@
 #include "Renderer/Light.h"
 #include "SDL_scancode.h"
 #include "SDL_mouse.h"
+#include "Renderer/Timer.h"
 
 #define SHADERPATH "shaders/"
 

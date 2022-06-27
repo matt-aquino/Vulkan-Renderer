@@ -1,14 +1,14 @@
 #include "Light.h"
 
 #pragma region BASE
+Light::Light()
+{
+	position = glm::vec3(0.0f);
+}
+
 void Light::setLightColor(glm::vec3 col)
 {
 	color = col;
-}
-
-glm::vec3 Light::getLightPos()
-{
-	return position;
 }
 
 void Light::setLightPos(glm::vec3 newPos)
@@ -41,14 +41,14 @@ SpotLight::SpotLight()
 SpotLight::SpotLight(glm::vec3 position, glm::vec3 targ, glm::vec3 col, float n, float f)
 {
 	type = LightType::SPOTLIGHT;
-	pos = position;
+	this->position = position;
 	nearPlane = n;
 	farPlane = f;
 
 	proj = glm::perspective(glm::radians(45.0f), 1.0f, nearPlane, farPlane);
 	proj[1][1] *= -1;
 	target = targ;
-	view = glm::lookAt(pos, target, worldUp);
+	view = glm::lookAt(position, target, worldUp);
 	color = col;
 }
 
@@ -80,8 +80,8 @@ float SpotLight::getFarPlane()
 
 void SpotLight::setLightPos(glm::vec3 newPos)
 {
-	pos = newPos;
-	view = glm::lookAt(pos, target, worldUp);
+	position = newPos;
+	view = glm::lookAt(position, target, worldUp);
 }
 #pragma endregion
 
@@ -116,7 +116,7 @@ PointLight::PointLight()
 PointLight::PointLight(glm::vec3 position, glm::vec3 col)
 {
 	type = LightType::POINT;
-	pos = position;
+	this->position = position;
 	color = col;
 }
 

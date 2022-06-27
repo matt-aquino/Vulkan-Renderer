@@ -18,7 +18,10 @@
 #define HELPERSTRUCTS_H
 
 #include "vulkan/vulkan.h"
+
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+
 #include <glm/gtx/transform.hpp>
 #include <vector>
 #include <fstream>
@@ -124,8 +127,8 @@ enum class VulkanReturnValues
 // simple vertex structure for position and color
 struct Vertex
 {
-	glm::vec3 position; // for 2D objects, simply ignore the z value
-	glm::vec3 color;
+	glm::vec4 position; // for 2D objects, simply ignore the z value
+	glm::vec4 color;
 
 	static VkVertexInputBindingDescription getBindingDescription();
 	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions();
@@ -134,9 +137,9 @@ struct Vertex
 // vertex structure for models, contains positions, texcoords, and normals
 struct ModelVertex
 {
-	alignas(16)glm::vec3 position; 
-	alignas(8)glm::vec2 texcoord;
-	alignas(16)glm::vec3 normal;
+	glm::vec4 position; 
+	glm::vec2 texcoord;
+	glm::vec4 normal;
 
 	static VkVertexInputBindingDescription getBindingDescription();
 	static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions();
@@ -147,8 +150,8 @@ struct ModelVertex
 // vertex structure for ImGui fonts
 struct FontVertex
 {
-	alignas(8)glm::vec2 position;
-	alignas(8)glm::vec2 texcoord;
+	glm::vec2 position;
+	glm::vec2 texcoord;
 	glm::vec4 color;
 
 	static VkVertexInputBindingDescription getBindingDescription();
@@ -159,9 +162,9 @@ struct FontVertex
 
 struct Particle
 {
-	alignas(16)glm::vec3 position;
-	alignas(16)glm::vec3 velocity;
-	alignas(16)glm::vec3 color;
+	glm::vec4 position;
+	glm::vec4 velocity;
+	glm::vec4 color;
 };
 
 enum class TextureType

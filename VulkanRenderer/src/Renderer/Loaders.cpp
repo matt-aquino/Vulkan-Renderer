@@ -209,7 +209,8 @@ Model* ModelLoader::loadModel(std::string folder, std::string file)
 				newVertex.position = {
 					attrib.vertices[3 * index.vertex_index + 0],
 					attrib.vertices[3 * index.vertex_index + 1],
-					attrib.vertices[3 * index.vertex_index + 2]
+					attrib.vertices[3 * index.vertex_index + 2],
+					1.0f
 				};
 
 				if (index.texcoord_index == -1) // -1 means the texcoord isn't being used 
@@ -224,7 +225,8 @@ Model* ModelLoader::loadModel(std::string folder, std::string file)
 				newVertex.normal = {
 					attrib.normals[3 * index.normal_index + 0],
 					attrib.normals[3 * index.normal_index + 1],
-					attrib.normals[3 * index.normal_index + 2]
+					attrib.normals[3 * index.normal_index + 2],
+					0.0f
 				};
 
 				// check if we've already seen this vertex or not
@@ -413,6 +415,8 @@ Texture* TextureLoader::loadTexture(std::string folder, std::string name, Textur
 
 	static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 
+	folder += "/";
+
 	int width, height, channels;
 	stbi_uc* pixels = stbi_load((directory + folder + name).c_str(), &width, &height, &channels, STBI_rgb_alpha);
 	if (!pixels)
@@ -472,9 +476,6 @@ Texture* TextureLoader::loadTexture(std::string folder, std::string name, Textur
 	HelperFunctions::copyBufferToImage(shared::commandPool, stagingBuffer, tex->image, texWidth, texHeight, 1);
 	
 	HelperFunctions::generateImageMipmaps(tex->image, format, texWidth, texHeight, 1, mipLevels, shared::commandPool);
-	//HelperFunctions::transitionImageLayout(tex->image, format, mipLevels,
-	//	VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, shared::commandPool,
-	//	VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
 	vkDestroyBuffer(device, stagingBuffer, nullptr);
 	vkFreeMemory(device, stagingBufferMemory, nullptr);

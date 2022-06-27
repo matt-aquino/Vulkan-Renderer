@@ -16,6 +16,16 @@ namespace HelperFunctions
 			return createInfo;
 		}
 
+		VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo()
+		{
+			VkPipelineVertexInputStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+			createInfo.vertexAttributeDescriptionCount = 0;
+			createInfo.pVertexAttributeDescriptions = nullptr;
+			createInfo.vertexBindingDescriptionCount = 0;
+			createInfo.pVertexBindingDescriptions = nullptr;
+			return createInfo;
+		}
+
 		VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo(int numBindingDescriptions, VkVertexInputBindingDescription& bindingDescriptions, int numAttributeDescriptions, VkVertexInputAttributeDescription* attributeDescriptions)
 		{
 			VkPipelineVertexInputStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
@@ -35,7 +45,7 @@ namespace HelperFunctions
 			return createInfo;
 		}
 
-		VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo(int numAttachments, VkPipelineColorBlendAttachmentState blendAttachState)
+		VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo(int numAttachments, VkPipelineColorBlendAttachmentState& blendAttachState)
 		{
 			VkPipelineColorBlendStateCreateInfo createInfo = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
 			createInfo.attachmentCount = numAttachments;
@@ -397,8 +407,7 @@ namespace HelperFunctions
 			}
 		}
 
-		VkMemoryAllocateInfo allocInfo = {};
-		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		VkMemoryAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
 		allocInfo.allocationSize = memRequirements.size;
 		allocInfo.memoryTypeIndex = typeIndex;
 

@@ -118,12 +118,12 @@ std::array<VkVertexInputAttributeDescription, 2> Vertex::getAttributeDescription
 	std::array<VkVertexInputAttributeDescription, 2> attrDesc{};
 	attrDesc[0].binding = 0;
 	attrDesc[0].location = 0; // match the location within the shader
-	attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT; // match format within shader (float, vec2, vec3, vec4,)
+	attrDesc[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // match format within shader (float, vec2, vec3, vec4,)
 	attrDesc[0].offset = offsetof(Vertex, position);
 
 	attrDesc[1].binding = 0;
 	attrDesc[1].location = 1;
-	attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attrDesc[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	attrDesc[1].offset = offsetof(Vertex, color);
 
 	return attrDesc;
@@ -144,7 +144,7 @@ std::array<VkVertexInputAttributeDescription, 3> ModelVertex::getAttributeDescri
 	std::array<VkVertexInputAttributeDescription, 3> attrDesc{};
 	attrDesc[0].binding = 0;
 	attrDesc[0].location = 0; // match the location within the shader
-	attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT; // match format within shader (float, vec2, vec3, vec4,)
+	attrDesc[0].format = VK_FORMAT_R32G32B32A32_SFLOAT; // match format within shader (float, vec2, vec3, vec4,)
 	attrDesc[0].offset = offsetof(ModelVertex, position);
 
 	attrDesc[1].binding = 0;
@@ -154,7 +154,7 @@ std::array<VkVertexInputAttributeDescription, 3> ModelVertex::getAttributeDescri
 	
 	attrDesc[2].binding = 0;
 	attrDesc[2].location = 2;
-	attrDesc[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+	attrDesc[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
 	attrDesc[2].offset = offsetof(ModelVertex, normal);
 
 	return attrDesc;
@@ -266,9 +266,10 @@ void Texture::destroyTexture()
 	{
 		vkDestroyImage(device, image, nullptr);
 		vkDestroyImageView(device, imageView, nullptr);
-		vkDestroySampler(device, sampler, nullptr);
 		vkFreeMemory(device, imageMemory, nullptr);
 	}
+	if (sampler != VK_NULL_HANDLE)
+		vkDestroySampler(device, sampler, nullptr);
 }
 
 // material
@@ -286,9 +287,7 @@ Material::Material()
 	reflectionTex = new Texture(TextureType::REFLECTION);
 	roughnessTex = new Texture(TextureType::ROUGHNESS);
 	sheenTex = new Texture(TextureType::SHEEN);
-
-	ubo.ambient = glm::vec3(0.15f);
-	ubo.diffuse = glm::vec3(1.0f);
+	ubo = {};
 }
 
 void Material::destroy()
@@ -511,7 +510,9 @@ void Mesh::setModelMatrix(glm::mat4 m)
 {
 	meshUBO.model = m;
 	meshUBO.normal = glm::transpose(glm::inverse(meshUBO.model));
+	uniformBuffer.map();
 	memcpy(uniformBuffer.mappedMemory, &meshUBO, sizeof(meshUBO));
+	uniformBuffer.unmap();
 }
 
 void Mesh::setMaterialColorWithValue(ColorType colorType, glm::vec3 color)

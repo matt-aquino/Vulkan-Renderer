@@ -1,8 +1,8 @@
 #version 460 core
 
-layout(location = 0) in vec3 aPos;
+layout(location = 0) in vec4 aPos;
 layout(location = 1) in vec2 aTexcoord;
-layout(location = 2) in vec3 aNormal;
+layout(location = 2) in vec4 aNormal;
 
 layout(set = 0, binding = 0) uniform UBO
 {
@@ -23,9 +23,9 @@ layout(location = 1) out vec3 outFragWorld;
 
 void main()
 {
-	vec4 vertWorld = model * vec4(aPos, 1.0);
+	vec4 vertWorld = model * aPos;
 	outFragWorld = vertWorld.xyz;
-	outFragNormalWorld = vec3(normal * vec4(aNormal, 0.0));
+	outFragNormalWorld = vec3(normal * aNormal);
 
 	gl_Position = proj * view * vertWorld;
 }

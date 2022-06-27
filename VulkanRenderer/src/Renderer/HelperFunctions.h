@@ -23,10 +23,22 @@ namespace HelperFunctions
 {
 	namespace initializers
 	{
+		// defines primitive topology 
 		VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo(VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VkPipelineInputAssemblyStateCreateFlags flags = 0, VkBool32 restart = VK_FALSE);
+		
+		// use when you need an empty vertex state: e.g rendering a full screen quad
+		VkPipelineVertexInputStateCreateInfo   pipelineVertexInputStateCreateInfo();
+
+		// use for every other case of vertex input
 		VkPipelineVertexInputStateCreateInfo   pipelineVertexInputStateCreateInfo(int numBindingDescriptions, VkVertexInputBindingDescription& bindingDescriptions, int numAttributeDescriptions, VkVertexInputAttributeDescription* attributeDescriptions);
+		
+		// define rasterization state, such as fill mode, which faces to cull, and vertex order
 		VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo(VkPolygonMode polygonMode = VK_POLYGON_MODE_FILL, VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT, VkFrontFace front = VK_FRONT_FACE_COUNTER_CLOCKWISE);
-		VkPipelineColorBlendStateCreateInfo    pipelineColorBlendStateCreateInfo(int numAttachments, VkPipelineColorBlendAttachmentState blendAttachState);
+		
+		// define attachments for color blending
+		VkPipelineColorBlendStateCreateInfo    pipelineColorBlendStateCreateInfo(int numAttachments, VkPipelineColorBlendAttachmentState& blendAttachState);
+		
+		// define depth and stencil state
 		VkPipelineDepthStencilStateCreateInfo  pipelineDepthStencilStateCreateInfo(VkBool32 enableDepthTest = VK_TRUE, VkBool32 enableDepthWrite = VK_TRUE, VkCompareOp compareOp = VK_COMPARE_OP_LESS);
 		VkPipelineViewportStateCreateInfo	   pipelineViewportStateCreateInfo(int viewportCount, int scissorCount, VkPipelineViewportStateCreateFlags flags);
 		VkPipelineMultisampleStateCreateInfo   pipelineMultisampleStateCreateInfo(VkSampleCountFlagBits flags = VK_SAMPLE_COUNT_1_BIT);

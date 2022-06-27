@@ -1,6 +1,5 @@
 #include "Materials.h"
 #include <random>
-#include "Renderer/Renderer.h"
 
 MaterialScene::MaterialScene(std::string name, const VulkanSwapChain& swapChain)
 {
@@ -165,12 +164,11 @@ void MaterialScene::DestroyScene(bool isRecreation)
 void MaterialScene::HandleKeyboardInput(const uint8_t* keystates, float dt)
 {
 	static Camera* camera = Camera::GetCamera();
-	ImGuiIO& io = ImGui::GetIO();
 
 	if (isCameraMoving)
 	{
-		io.WantCaptureKeyboard = false;
-		io.WantTextInput = false;
+		ui->SetKeyboardCapture(false);
+		ui->SetTextCapture(false);
 
 		if (keystates[SDL_SCANCODE_A])
 			camera->HandleInput(KeyboardInputs::LEFT, dt);
@@ -193,8 +191,7 @@ void MaterialScene::HandleKeyboardInput(const uint8_t* keystates, float dt)
 
 	else
 	{
-		io.WantCaptureKeyboard = true;
-		io.WantTextInput = true;
+		ui->SetKeyboardCapture(true);
 	}
 
 	if (keystates[SDL_SCANCODE_LEFT])
@@ -207,13 +204,12 @@ void MaterialScene::HandleKeyboardInput(const uint8_t* keystates, float dt)
 void MaterialScene::HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY)
 {
 	static Camera* camera = Camera::GetCamera();
-	ImGuiIO& io = ImGui::GetIO(); // TO DO: continue working on ImGui input. rework this class into a UI class
 
 	if ((buttons & SDL_BUTTON_RMASK) != 0)
 	{
 		SDL_SetRelativeMouseMode(SDL_TRUE);
 		isCameraMoving = true;
-		io.WantCaptureMouse = false;
+		ui->SetMouseCapture(false);
 
 		static float deltaX = 0.0f;
 		static float deltaY = 0.0f;
@@ -231,9 +227,9 @@ void MaterialScene::HandleMouseInput(uint32_t buttons, const int x, const int y,
 	{
 		SDL_SetRelativeMouseMode(SDL_FALSE);
 		isCameraMoving = false;
-		io.WantCaptureMouse = true;
-		io.AddMouseButtonEvent(0, (buttons & SDL_BUTTON_LMASK) != 0);
-		io.AddMouseWheelEvent(mouseWheelX, mouseWheelY);
+		ui->SetMouseCapture(true);
+		ui->AddMouseButtonEvent(0, (buttons & SDL_BUTTON_LMASK) != 0);
+		ui->AddMouseWheelEvent(mouseWheelX, mouseWheelY);
 	}
 
 	

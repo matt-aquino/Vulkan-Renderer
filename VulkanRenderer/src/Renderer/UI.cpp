@@ -1,7 +1,7 @@
 #include "UI.h"
 #include "Renderer.h"
 
-UI::UI(const VkCommandPool& commandPool, const VulkanSwapChain& swapChain, const VulkanGraphicsPipeline& graphicsPipeline)
+UI::UI(const VkCommandPool& commandPool, const VulkanSwapChain& swapChain, const VulkanGraphicsPipeline& graphicsPipeline, VkSampleCountFlagBits counts)
 	: commandPool(commandPool), graphicsPipeline(graphicsPipeline)
 {
 	VulkanDevice* vkDevice = VulkanDevice::GetVulkanDevice();
@@ -26,6 +26,20 @@ UI::UI(const VkCommandPool& commandPool, const VulkanSwapChain& swapChain, const
 		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
 	}
 	ImGui_ImplSDL2_InitForVulkan(Renderer::GetWindow());
+
+	std::vector<VkDescriptorPoolSize> poolSizes =
+	{
+		{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000}
+	};
+	uint32_t poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	VkDescriptorPoolCreateInfo poolInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+	poolInfo.poolSizeCount = poolSizeCount;
+	poolInfo.pPoolSizes = poolSizes.data();
+	poolInfo.maxSets = poolSizeCount * 1000;
+
+	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS)
+		throw std::runtime_error("failed to create UI descriptor pool");
+
 	ImGui_ImplVulkan_InitInfo initInfo =
 	{
 		Renderer::GetVKInstance(),
@@ -34,11 +48,11 @@ UI::UI(const VkCommandPool& commandPool, const VulkanSwapChain& swapChain, const
 		vkDevice->GetFamilyIndices().graphicsFamily.value(),
 		vkDevice->GetQueues().renderQueue,
 		nullptr,
-		graphicsPipeline.descriptorPool,
+		descriptorPool,
 		0,
 		2,
 		swapChain.swapChainImages.size(),
-		HelperFunctions::getMaximumSampleCount(),
+		counts,
 		nullptr, nullptr
 	};
 
@@ -80,6 +94,7 @@ UI::UI(const VkCommandPool& commandPool, const VulkanSwapChain& swapChain, const
 
 UI::~UI()
 {
+	vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 	ImGui_ImplVulkan_Shutdown();
 	ImGui_ImplSDL2_Shutdown();
 	ImGui::DestroyContext();
@@ -180,15 +195,71 @@ void UI::EndWindow()
 	ImGui::End();
 }
 
+void UI::AddSpacing(int numSpaces)
+{
+	for (int i = 0; i < numSpaces; i++)
+		ImGui::NewLine();
+}
+
 
 void UI::DrawUIText(const char* text)
 {
 	ImGui::Text(text);
 }
 
+void UI::DrawUITextFloat(const char* name, float& value)
+{
+	const char* text = "%s: %.2f";
+	ImGui::Text(text, name, value);
+}
+
+void UI::DrawUITextVec2(const char* name, glm::vec2& values)
+{
+	const char* text = "%s: %.2f, %.2f";
+	ImGui::Text(text, name, values[0], values[1]);
+}
+
+void UI::DrawUITextVec3(const char* name, glm::vec3& values)
+{
+	const char* text = "%s: %.2f, %.2f, %.2f";
+	ImGui::Text(text, name, values[0], values[1], values[2]);
+}
+
+void UI::DrawUITextVec4(const char* name, glm::vec4& values)
+{
+	const char* text = "%s: %.2f, %.2f, %.2f, %.2f";
+	ImGui::Text(text, name, values[0], values[1], values[2], values[3]);
+}
+
 bool UI::DrawCheckBox(const char* label, bool* value)
 {
 	return ImGui::Checkbox(label, value);
+}
+
+ImTextureID UI::AddImage(VkSampler& sampler, VkImageView& imageView, VkImageLayout layout)
+{
+	if (addedTextures.find(imageView) != addedTextures.end())
+		return addedTextures[imageView];
+
+	ImTextureID texID = ImGui_ImplVulkan_AddTexture(sampler, imageView, layout);
+	addedTextures.insert({ imageView, texID });
+	return texID;
+}
+
+void UI::DrawImage(const char* name, Texture texture, VkSampler* sampler, glm::vec2 size, VkImageLayout layout)
+{
+	ImGui::Text(name);
+	ImTextureID texID = AddImage(*sampler, texture.imageView, layout);
+	ImVec2 imageSize = ImVec2(size.x, size.y);
+	ImGui::Image(texID, imageSize);
+}
+
+void UI::DrawImage(const char* name, VkSampler* sampler, VkImageView* imageView, glm::vec2 size, VkImageLayout layout)
+{
+	ImGui::Text(name);
+	ImTextureID texID = AddImage(*sampler, *imageView, layout);
+	ImVec2 imageSize = ImVec2(size.x, size.y);
+	ImGui::Image(texID, imageSize);
 }
 
 void UI::ShowDemoWindow()
@@ -239,6 +310,42 @@ bool UI::NewTreeNode(const void* ptr, const char* label, ...)
 void UI::EndTreeNode()
 {
 	ImGui::TreePop();
+}
+
+void UI::SetMouseCapture(bool capture)
+{
+	ImGuiIO& io = ImGui::GetIO();
+	io.WantCaptureMouse = capture;
+}
+
+void UI::SetKeyboardCapture(bool capture)
+{
+	ImGuiIO& io = ImGui::GetIO();
+	io.WantCaptureKeyboard = capture;
+}
+
+void UI::SetTextCapture(bool capture)
+{
+	ImGuiIO& io = ImGui::GetIO();
+	io.WantTextInput = capture;
+}
+
+void UI::AddMouseButtonEvent(int button, bool pressed)
+{
+	ImGuiIO& io = ImGui::GetIO();
+	io.AddMouseButtonEvent(button, pressed);
+}
+
+void UI::AddMouseWheelEvent(float mouseWheelX, float mouseWheelY)
+{
+	ImGuiIO& io = ImGui::GetIO();
+	io.AddMouseWheelEvent(mouseWheelX, mouseWheelY);
+}
+
+void UI::AddKeyEvent(int key, bool pressed)
+{
+	ImGuiIO& io = ImGui::GetIO();
+	io.AddKeyEvent((ImGuiKey)key, pressed);
 }
 
 void UI::UpdateBuffers()
@@ -296,6 +403,8 @@ void UI::UpdateBuffers()
 	graphicsPipeline.vertexBuffer.flush();
 	graphicsPipeline.indexBuffer.flush();
 }
+
+
 
 void UI::CreateRenderPass(VkFormat swapChainFormat)
 {
@@ -432,10 +541,10 @@ void UI::CreateFontTexture(VkQueue renderQueue)
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		commandPool, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 
-	HelperFunctions::createSampler(fontTexture.sampler, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+	HelperFunctions::createSampler(fontTextureSampler, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 
 	fontTexture.textureDescriptor.imageView = fontTexture.imageView;
-	fontTexture.textureDescriptor.sampler = fontTexture.sampler;
+	fontTexture.textureDescriptor.sampler = fontTextureSampler;
 	fontTexture.textureDescriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	io.Fonts->SetTexID((ImTextureID)&fontTexture);

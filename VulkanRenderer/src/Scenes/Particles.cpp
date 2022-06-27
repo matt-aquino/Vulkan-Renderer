@@ -280,23 +280,26 @@ void Particles::CreateParticles(bool isRecreation)
 		for (int i = 0; i < MAX_NUM_PARTICLES; i++)
 		{
 			// random number between -1.0 and 1.0
-			glm::vec3 position = {
+			glm::vec4 position = {
 				float((std::rand() % 100 - 50) / 50.0f),
 				float((std::rand() % 100 - 50) / 50.0f),
 				float((std::rand() % 100 - 50) / 50.0f),
+				1.0f
 			};
 
-			glm::vec3 velocity = {
+			glm::vec4 velocity = {
 				std::rand() % 5,
 				std::rand() % 5,
 				std::rand() % 5,
+				1.0f
 			};
 
 			// grab random RGB ranged from 0.1f - 1.0f; avoids all black particles
-			glm::vec3 color = {
+			glm::vec4 color = {
 				(float)((std::rand() % 255 + 0.1f) / 255.0f),
 				(float)((std::rand() % 255 + 0.1f) / 255.0f),
-				(float)((std::rand() % 255 + 0.1f) / 255.0f)
+				(float)((std::rand() % 255 + 0.1f) / 255.0f),
+				1.0f
 			};
 
 			Particle newParticle = { position, velocity, color };
