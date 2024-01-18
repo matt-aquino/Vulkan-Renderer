@@ -34,8 +34,6 @@ VulkanDevice::~VulkanDevice()
 
 void VulkanDevice::CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSurface)
 {
-    device = new VulkanDevice();
-
     // find suitable physical device
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(appInstance, &deviceCount, NULL);
@@ -90,6 +88,9 @@ void VulkanDevice::CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSu
 
 VulkanDevice* VulkanDevice::GetVulkanDevice()
 {
+    if (device == nullptr)
+        device = new VulkanDevice();
+
     return device;
 }
 

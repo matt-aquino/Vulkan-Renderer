@@ -50,35 +50,20 @@ void VulkanBuffer::flush(VkDeviceSize size, VkDeviceSize offset)
 
 void VulkanGraphicsPipeline::destroyGraphicsPipeline(const VkDevice& device)
 {
-	for (size_t i = 0; i < framebuffers.size(); i++)
-	{
-		vkDestroyFramebuffer(device, framebuffers[i], nullptr);
-	}
-
-	for (size_t i = 0; i < uniformBuffers.size(); i++)
-	{
-		uniformBuffers[i].destroy();
-	}
-
-	vertexBuffer.destroy();
-	indexBuffer.destroy();
-
-	if (!isDepthBufferEmpty)
-	{
-		vkDestroyImageView(device, depthStencilBufferView, nullptr);
-		vkDestroyImage(device, depthStencilBuffer, nullptr);
-		vkFreeMemory(device, depthStencilBufferMemory, nullptr);
-	}
-
 	if (!isDescriptorPoolEmpty)
 	{
 		vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 	}
 
+	for (size_t i = 0; i < uniformBuffers.size(); i++)
+	{
+		vkDestroyBuffer(device, uniformBuffers[i].buffer, nullptr);
+		vkFreeMemory(device, uniformBuffers[i].bufferMemory, nullptr);
+	}
+	
 	vkDestroyPipeline(device, pipeline, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-	vkDestroyRenderPass(device, renderPass, nullptr);
 }
 
 void VulkanComputePipeline::destroyComputePipeline(const VkDevice& device)
@@ -273,6 +258,7 @@ void Texture::destroyTexture()
 }
 
 // material
+/*
 Material::Material()
 {
 	ambientTex = new Texture(TextureType::AMBIENT);
@@ -289,21 +275,29 @@ Material::Material()
 	sheenTex = new Texture(TextureType::SHEEN);
 	ubo = {};
 }
+*/
+Material::Material()
+{
+
+}
 
 void Material::destroy()
 {
-	delete ambientTex;
-	delete diffuseTex;
-	delete specularTex;
-	delete specularHighlightTex;
-	delete normalTex;
-	delete alphaTex;
-	delete metallicTex;
-	delete displacementTex;
-	delete emissiveTex;
-	delete reflectionTex;
-	delete roughnessTex;
-	delete sheenTex;
+	// TextureLoader will handle deleting texture resources
+	// so only worry about deleting descriptors and buffers
+	
+	//delete ambientTex;
+	//delete diffuseTex;
+	//delete specularTex;
+	//delete specularHighlightTex;
+	//delete normalTex;
+	//delete alphaTex;
+	//delete metallicTex;
+	//delete displacementTex;
+	//delete emissiveTex;
+	//delete reflectionTex;
+	//delete roughnessTex;
+	//delete sheenTex;
 
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	vkDestroyBuffer(device, uniformBuffer.buffer, nullptr);
@@ -360,13 +354,15 @@ void Material::createDescriptorSet(Texture* emptyTexture)
 	// combined image samplers for textures
 	for (size_t i = 0; i < numTextures; i++)
 	{
-		VkDescriptorSetLayoutBinding textureBinding = {};
-		textureBinding.binding = (uint32_t)textures[i]->type;
-		textureBinding.descriptorCount = 1;
-		textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		textureBinding.pImmutableSamplers = nullptr;
-		textureBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-		bindings.push_back(textureBinding);
+		if (textures[i])
+		{
+			textureBinding.binding = (uint32_t)textures[i]->type;
+			textureBinding.descriptorCount = 1;
+			textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			textureBinding.pImmutableSamplers = nullptr;
+			textureBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			bindings.push_back(textureBinding);
+		}
 	}
 
 	VkDescriptorSetLayoutCreateInfo layoutInfo = {};
@@ -415,17 +411,20 @@ void Material::createDescriptorSet(Texture* emptyTexture)
 	for (size_t i = 0; i < numTextures; i++)
 	{
 		VkWriteDescriptorSet textureWrite = {};
-		textureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		textureWrite.descriptorCount = 1;
-		textureWrite.dstSet = descriptorSet;
-		textureWrite.dstBinding = (uint32_t)textures[i]->type;
-		if (textures[i]->image != VK_NULL_HANDLE)
-			textureWrite.pImageInfo = &textures[i]->textureDescriptor;
-		else
-			textureWrite.pImageInfo = &emptyTexture->textureDescriptor;
+		if (textures[i])
+		{
+			textureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			textureWrite.descriptorCount = 1;
+			textureWrite.dstSet = descriptorSet;
+			textureWrite.dstBinding = (uint32_t)textures[i]->type;
+			if (textures[i]->image != VK_NULL_HANDLE)
+				textureWrite.pImageInfo = &textures[i]->textureDescriptor;
+			else
+				textureWrite.pImageInfo = &emptyTexture->textureDescriptor;
 
-		writes.push_back(textureWrite);
+			writes.push_back(textureWrite);
+		}
 	}
 
 	vkUpdateDescriptorSets(device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
@@ -819,7 +818,8 @@ void Mesh::setMaterialValue(MaterialValueType valueType, float value)
 	material->updateMaterial();
 }
 
-void Mesh::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial)
+void Mesh::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial,
+	int instanceCount, int firstIndex, int vertOffset, int firstInstanceIndex)
 {
 	static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	VkDeviceSize offsets[] = { 0 };
@@ -837,14 +837,13 @@ void Mesh::draw(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout,
 			2, 1, &material->descriptorSet, 0, nullptr);
 	}
 
-	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+	vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 
+		instanceCount, firstIndex, vertOffset, firstInstanceIndex);
 }
 // mesh
 void Mesh::destroyMesh()
 {
 	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
-	material->destroy();
 
 	vkDestroyBuffer(device, vertexBuffer.buffer, nullptr);
 	vkDestroyBuffer(device, indexBuffer.buffer, nullptr);
@@ -861,11 +860,21 @@ void Mesh::destroyMesh()
 // model
 void Model::destroyModel()
 {
+	emptyMaterial->destroy();
+	delete emptyMaterial;
+
 	while (!meshes.empty())
 	{
 		meshes[0]->destroyMesh();
 		delete meshes[0];
 		meshes.erase(meshes.begin());
+	}
+
+	while (!materials.empty())
+	{
+		materials[0]->destroy();
+		delete materials[0];
+		materials.erase(materials.begin());
 	}
 }
 

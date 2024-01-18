@@ -5,10 +5,16 @@
 class Mandelbrot : public VulkanScene
 {
 public:
-	Mandelbrot();
 	Mandelbrot(std::string name, const VulkanSwapChain& swapChain);
 	~Mandelbrot();
 
+	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
+
+	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
+
+	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
+
+private:
 	// ** Perform initial setup of a scene
 	virtual void RecordScene() override;
 
@@ -17,17 +23,9 @@ public:
 
 	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
 
-	// ** perform main loop of scene **
-	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
-
 	// ** Clean up resources ** 
 	virtual void DestroyScene(bool isRecreation) override;
 
-	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
-
-	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
-
-private:
 	// ** Create all aspects of the graphics and compute pipelines **
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);
 
@@ -50,6 +48,7 @@ private:
 	void CreateSyncObjects(const VulkanSwapChain& swapChain);
 
 	VulkanGraphicsPipeline graphicsPipeline;
+	VkRenderPass renderPass;
 
 	struct PushConstants
 	{

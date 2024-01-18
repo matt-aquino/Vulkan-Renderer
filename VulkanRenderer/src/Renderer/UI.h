@@ -13,12 +13,13 @@
 class UI
 {
 public:
-	UI(const VkCommandPool& commandPool, const VulkanSwapChain& swapChain, const VulkanGraphicsPipeline& graphicsPipeline, VkSampleCountFlagBits counts = HelperFunctions::getMaximumSampleCount());
+	UI(const VkCommandPool& commandPool, const VulkanSwapChain& swapChain, const VkRenderPass& renderPass, 
+		const VulkanGraphicsPipeline& graphicsPipeline, VkSampleCountFlagBits counts = HelperFunctions::getMaximumSampleCount());
 	~UI();
 
 	void NewUIFrame();
 	void EndFrame();
-	void RenderFrame(VkCommandBuffer commandBuffer, uint32_t index);
+	void RenderFrame(VkCommandBuffer commandBuffer, VkFramebuffer framebuffer, uint32_t index);
 
 	bool NewWindow(const char* name);
 	void EndWindow();
@@ -60,6 +61,8 @@ public:
 
 private:
 	VulkanGraphicsPipeline graphicsPipeline;
+	VulkanBuffer vertexBuffer = {}, indexBuffer = {};
+	VkRenderPass renderPass;
 	VkDescriptorPool descriptorPool;
 	int vertexCount = 0, indexCount = 0;
 
@@ -77,13 +80,6 @@ private:
 		glm::vec2 translate;
 	}pushConstBlock;
 
-	void CreateRenderPass(VkFormat swapChainFormat);
-	void CreateDescriptors(int numImages);
-	void CreateFontTexture(VkQueue renderQueue);
-	void CreateFramebuffers(const VulkanSwapChain& swapChain);
-	void CreateGraphicsPipeline();
-
-	void UpdateBuffers();
 
 	ImTextureID AddImage(VkSampler& sampler, VkImageView& imageView, VkImageLayout layout);
 };

@@ -1,17 +1,8 @@
 #include "ShadowMap.h"
 #include "Renderer/Loaders.h"
 
-VkDevice device = nullptr;
-
-ShadowMap::ShadowMap()
-{
-	sceneName = "";
-}
-
 ShadowMap::ShadowMap(std::string name, const VulkanSwapChain& swapChain)
 {
-	device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
 	sceneName = name;
 
 	CreateSceneObjects();
@@ -33,7 +24,7 @@ ShadowMap::ShadowMap(std::string name, const VulkanSwapChain& swapChain)
 	CreatePipelines(swapChain);
 	CreateCommandBuffers();
 
-	ui = new UI(commandPool, swapChain, graphicsPipeline, VK_SAMPLE_COUNT_8_BIT);
+	ui = new UI(commandPool, swapChain, renderPass, graphicsPipeline, VK_SAMPLE_COUNT_8_BIT);
 
 }
 
@@ -92,7 +83,7 @@ VulkanReturnValues ShadowMap::PresentScene(const VulkanSwapChain& swapChain)
 	/*
 	********** PREPARATION ************
 	*/
-	graphicsPipeline.result = vkAcquireNextImageKHR(device, swapChain.swapChain,
+	graphicsPipeline.result = vkAcquireNextImageKHR(logicalDevice, swapChain.swapChain,
 		UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 	if (graphicsPipeline.result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -103,7 +94,7 @@ VulkanReturnValues ShadowMap::PresentScene(const VulkanSwapChain& swapChain)
 
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
-		vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 
 	UpdateUniforms(imageIndex); // update matrices as needed
 	RecordCommandBuffers(imageIndex);
@@ -128,7 +119,7 @@ VulkanReturnValues ShadowMap::PresentScene(const VulkanSwapChain& swapChain)
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	vkResetFences(device, 1, &inFlightFences[currentFrame]);
+	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
 
 	if (vkQueueSubmit(queues.renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer!");
@@ -241,7 +232,7 @@ void ShadowMap::RecordCommandBuffers(uint32_t index)
 	// perform shadow pass to generate shadow map
 	{
 		clearValues[0].depthStencil = {1.0f, 0};
-		renderPassInfo.renderPass = shadowPipeline.renderPass;
+		renderPassInfo.renderPass = renderPass;
 		renderPassInfo.framebuffer = shadowPipeline.framebuffers[0];
 		renderPassInfo.renderArea.extent = shadowPipeline.scissors.extent;
 		renderPassInfo.clearValueCount = 1;
@@ -267,7 +258,6 @@ void ShadowMap::RecordCommandBuffers(uint32_t index)
 	{
 		clearValues[0].color = {0.0f, 0.0f, 0.0f, 1.0f};
 
-		renderPassInfo.renderPass = debugPipeline.renderPass;
 		renderPassInfo.framebuffer = debugPipeline.framebuffers[0];
 		renderPassInfo.renderArea.extent = debugPipeline.scissors.extent;
 		renderPassInfo.clearValueCount = 1;
@@ -296,7 +286,7 @@ void ShadowMap::RecordCommandBuffers(uint32_t index)
 		clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
 		clearColors[1].depthStencil = { 1.0f, 0 };
 
-		renderPassInfo.renderPass = graphicsPipeline.renderPass;
+		renderPassInfo.renderPass = renderPass;
 		renderPassInfo.framebuffer = graphicsPipeline.framebuffers[index];
 		renderPassInfo.renderArea.extent = graphicsPipeline.scissors.extent;
 		renderPassInfo.clearValueCount = 2;
@@ -342,30 +332,31 @@ void ShadowMap::RecreateScene(const VulkanSwapChain& swapChain)
 	CreateCommandBuffers();
 
 	delete ui;
-	ui = new UI(commandPool, swapChain, graphicsPipeline, VK_SAMPLE_COUNT_8_BIT);
+	ui = new UI(commandPool, swapChain, renderPass, graphicsPipeline, VK_SAMPLE_COUNT_8_BIT);
 }
 
 void ShadowMap::DestroyScene(bool isRecreation)
 {
-	graphicsPipeline.destroyGraphicsPipeline(device);
-	debugPipeline.destroyGraphicsPipeline(device);
-	shadowPipeline.destroyGraphicsPipeline(device);
+	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
+	graphicsPipeline.destroyGraphicsPipeline(logicalDevice);
+	debugPipeline.destroyGraphicsPipeline(logicalDevice);
+	shadowPipeline.destroyGraphicsPipeline(logicalDevice);
 
 	msaaTex.destroyTexture();
 	debugTex.destroyTexture();
-	vkDestroySampler(device, shadowSampler, nullptr);
+	vkDestroySampler(logicalDevice, shadowSampler, nullptr);
 
 	uint32_t size = static_cast<uint32_t>(commandBuffersList.size());
-	vkFreeCommandBuffers(device, commandPool, size, commandBuffersList.data());
+	vkFreeCommandBuffers(logicalDevice, commandPool, size, commandBuffersList.data());
 
 	// these only NEED to be deleted once cleanup happens
 	if (!isRecreation)
 	{
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
-			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
-			vkDestroyFence(device, inFlightFences[i], nullptr);
+			vkDestroySemaphore(logicalDevice, renderCompleteSemaphores[i], nullptr);
+			vkDestroySemaphore(logicalDevice, presentCompleteSemaphores[i], nullptr);
+			vkDestroyFence(logicalDevice, inFlightFences[i], nullptr);
 		}
 
 		cube.destroyMesh();
@@ -506,7 +497,7 @@ void ShadowMap::CreatePipelines(const VulkanSwapChain& swapChain)
 
 		VkPipelineLayoutCreateInfo layoutInfo = HelperFunctions::initializers::pipelineLayoutCreateInfo(3, layouts);
 
-		graphicsPipeline.result = vkCreatePipelineLayout(device, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
+		graphicsPipeline.result = vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
 		if (graphicsPipeline.result != VK_SUCCESS)
 			throw std::runtime_error("Failed to create pipeline layout");
 
@@ -527,16 +518,16 @@ void ShadowMap::CreatePipelines(const VulkanSwapChain& swapChain)
 
 		pipelineInfo.stageCount = 2;
 		pipelineInfo.pStages = shaderStages;
-		pipelineInfo.renderPass = graphicsPipeline.renderPass;
+		pipelineInfo.renderPass = renderPass;
 		pipelineInfo.layout = graphicsPipeline.pipelineLayout;
 		pipelineInfo.pViewportState = &viewportState;
 
-		graphicsPipeline.result = vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineInfo, nullptr, &graphicsPipeline.pipeline);
+		graphicsPipeline.result = vkCreateGraphicsPipelines(logicalDevice, nullptr, 1, &pipelineInfo, nullptr, &graphicsPipeline.pipeline);
 		if (graphicsPipeline.result != VK_SUCCESS)
 			throw std::runtime_error("Failed to create graphics pipeline");
 
-		vkDestroyShaderModule(device, vertShaderModule, nullptr);
-		vkDestroyShaderModule(device, fragShaderModule, nullptr);
+		vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
+		vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
 	}
 #pragma endregion
 
@@ -580,21 +571,20 @@ void ShadowMap::CreatePipelines(const VulkanSwapChain& swapChain)
 
 		VkPipelineLayoutCreateInfo layoutInfo = HelperFunctions::initializers::pipelineLayoutCreateInfo(2, layouts);
 
-		shadowPipeline.result = vkCreatePipelineLayout(device, &layoutInfo, nullptr, &shadowPipeline.pipelineLayout);
+		shadowPipeline.result = vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &shadowPipeline.pipelineLayout);
 		if (shadowPipeline.result != VK_SUCCESS)
 			throw std::runtime_error("Failed to create pipeline layout");
 
-		pipelineInfo.renderPass = shadowPipeline.renderPass;
+		pipelineInfo.renderPass = renderPass;
 		pipelineInfo.stageCount = 1;
 		pipelineInfo.pStages = &shaderStage;
-		pipelineInfo.renderPass = shadowPipeline.renderPass;
 		pipelineInfo.layout = shadowPipeline.pipelineLayout;
 
-		shadowPipeline.result = vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineInfo, nullptr, &shadowPipeline.pipeline);
+		shadowPipeline.result = vkCreateGraphicsPipelines(logicalDevice, nullptr, 1, &pipelineInfo, nullptr, &shadowPipeline.pipeline);
 		if (shadowPipeline.result != VK_SUCCESS)
 			throw std::runtime_error("Failed to create graphics pipeline");
 
-		vkDestroyShaderModule(device, vertShaderModule, nullptr);
+		vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
 	}
 #pragma endregion
 
@@ -630,8 +620,8 @@ void ShadowMap::CreatePipelines(const VulkanSwapChain& swapChain)
 		debugPipeline.viewport.y = 0.0f;
 		debugPipeline.viewport.minDepth = 0.0f;
 		debugPipeline.viewport.maxDepth = 1.0f;
-		debugPipeline.viewport.width = shadowMapDim;
-		debugPipeline.viewport.height = shadowMapDim;
+		debugPipeline.viewport.width = (float)shadowMapDim;
+		debugPipeline.viewport.height = (float)shadowMapDim;
 		debugPipeline.scissors.offset = { 0, 0 };
 		debugPipeline.scissors.extent = { shadowMapDim, shadowMapDim };
 		viewportState.pViewports = &debugPipeline.viewport;
@@ -649,18 +639,17 @@ void ShadowMap::CreatePipelines(const VulkanSwapChain& swapChain)
 
 		VkPipelineLayoutCreateInfo layoutInfo = HelperFunctions::initializers::pipelineLayoutCreateInfo(1, &debugPipeline.descriptorSetLayout, 1, &push);
 
-		vkCreatePipelineLayout(device, &layoutInfo, nullptr, &debugPipeline.pipelineLayout);
+		vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &debugPipeline.pipelineLayout);
 
-		pipelineInfo.renderPass = debugPipeline.renderPass;
+		pipelineInfo.renderPass = renderPass;
 		pipelineInfo.stageCount = 2;
 		pipelineInfo.pStages = shaderStages;
-		pipelineInfo.renderPass = debugPipeline.renderPass;
 		pipelineInfo.layout = debugPipeline.pipelineLayout;
 
-		vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineInfo, nullptr, &debugPipeline.pipeline);
+		vkCreateGraphicsPipelines(logicalDevice, nullptr, 1, &pipelineInfo, nullptr, &debugPipeline.pipeline);
 
-		vkDestroyShaderModule(device, vertShaderModule, nullptr);
-		vkDestroyShaderModule(device, fragShaderModule, nullptr);
+		vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
+		vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
 	}
 #pragma endregion
 }
@@ -681,9 +670,9 @@ void ShadowMap::CreateSyncObjects(const VulkanSwapChain& swapChain)
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+		if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(logicalDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create sync objects for a frame");
 	}
 }
@@ -698,7 +687,7 @@ void ShadowMap::CreateCommandBuffers()
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = (uint32_t)commandBuffersList.size();
 
-	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate command buffers");
 }
 
@@ -758,7 +747,7 @@ void ShadowMap::CreateShadowRenderPass(const VulkanSwapChain& swapChain)
 	renderPassCreateInfo.dependencyCount = 2;
 	renderPassCreateInfo.pDependencies = dependencies.data();
 
-	if (vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &shadowPipeline.renderPass))
+	if (vkCreateRenderPass(logicalDevice, &renderPassCreateInfo, nullptr, &renderPass))
 		throw std::runtime_error("Failed to create shadow render pass");
 }
 
@@ -775,7 +764,7 @@ void ShadowMap::CreateShadowDescriptorSets(const VulkanSwapChain& swapChain)
 	poolInfo.poolSizeCount = 1;
 	poolInfo.pPoolSizes = &poolSize;
 
-	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &shadowPipeline.descriptorPool) != VK_SUCCESS)
+	if (vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &shadowPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor pool");
 
 	shadowPipeline.isDescriptorPoolEmpty = false;
@@ -792,7 +781,7 @@ void ShadowMap::CreateShadowDescriptorSets(const VulkanSwapChain& swapChain)
 	layoutInfo.bindingCount = 1;
 	layoutInfo.pBindings = &shadowUBO;
 
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &shadowPipeline.descriptorSetLayout) != VK_SUCCESS)
+	if (vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &shadowPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create shadow pass descriptor set layout");
 
 	size_t swapChainSize = swapChain.swapChainImages.size();
@@ -820,7 +809,7 @@ void ShadowMap::CreateShadowDescriptorSets(const VulkanSwapChain& swapChain)
 	allocInfo.pSetLayouts = layout.data();
 	shadowPipeline.descriptorSets.resize(swapChainSize);
 
-	if (vkAllocateDescriptorSets(device, &allocInfo, shadowPipeline.descriptorSets.data()) != VK_SUCCESS)
+	if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, shadowPipeline.descriptorSets.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate descriptor sets");
 
 	// writes
@@ -841,14 +830,14 @@ void ShadowMap::CreateShadowDescriptorSets(const VulkanSwapChain& swapChain)
 		write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		write.pBufferInfo = &bufferInfo;
 
-		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+		vkUpdateDescriptorSets(logicalDevice, 1, &write, 0, nullptr);
 	}
 }
 
 void ShadowMap::CreateShadowFramebuffers(const VulkanSwapChain& swapChain)
 {
 	VkFramebufferCreateInfo info = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
-	info.renderPass = shadowPipeline.renderPass;
+	info.renderPass = renderPass;
 	info.attachmentCount = 1;
 	info.pAttachments = &shadowPipeline.depthStencilBufferView;
 	info.width = shadowMapDim;
@@ -857,7 +846,7 @@ void ShadowMap::CreateShadowFramebuffers(const VulkanSwapChain& swapChain)
 
 	shadowPipeline.framebuffers.resize(1);
 
-	if (vkCreateFramebuffer(device, &info, nullptr, &shadowPipeline.framebuffers[0]) != VK_SUCCESS)
+	if (vkCreateFramebuffer(logicalDevice, &info, nullptr, &shadowPipeline.framebuffers[0]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create shadow pass framebuffer");
 
 }
@@ -893,7 +882,7 @@ void ShadowMap::CreateShadowResources()
 	sampler.minLod = 0.0f;
 	sampler.maxLod = 1.0f;
 	sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	if (vkCreateSampler(device, &sampler, nullptr, &shadowSampler) != VK_SUCCESS)
+	if (vkCreateSampler(logicalDevice, &sampler, nullptr, &shadowSampler) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create shadow map sampler");
 }
 
@@ -909,7 +898,7 @@ void ShadowMap::CreateDebugResources(const VulkanSwapChain& swapChain)
 		poolInfo.maxSets = 1;
 		poolInfo.poolSizeCount = 1;
 		poolInfo.pPoolSizes = &poolSize;
-		vkCreateDescriptorPool(device, &poolInfo, nullptr, &debugPipeline.descriptorPool);
+		vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &debugPipeline.descriptorPool);
 
 		VkDescriptorSetLayoutBinding binding = {};
 		binding.binding = 0;
@@ -920,7 +909,7 @@ void ShadowMap::CreateDebugResources(const VulkanSwapChain& swapChain)
 		VkDescriptorSetLayoutCreateInfo layoutInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 		layoutInfo.bindingCount = 1;
 		layoutInfo.pBindings = &binding;
-		vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &debugPipeline.descriptorSetLayout);
+		vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &debugPipeline.descriptorSetLayout);
 
 		VkDescriptorSetAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
 		allocInfo.descriptorPool = debugPipeline.descriptorPool;
@@ -928,7 +917,7 @@ void ShadowMap::CreateDebugResources(const VulkanSwapChain& swapChain)
 		allocInfo.pSetLayouts = &debugPipeline.descriptorSetLayout;
 
 		debugPipeline.descriptorSets.resize(1);
-		vkAllocateDescriptorSets(device, &allocInfo, &debugPipeline.descriptorSets[0]);
+		vkAllocateDescriptorSets(logicalDevice, &allocInfo, &debugPipeline.descriptorSets[0]);
 
 
 		VkDescriptorImageInfo info = {};
@@ -937,7 +926,7 @@ void ShadowMap::CreateDebugResources(const VulkanSwapChain& swapChain)
 		info.sampler = shadowSampler;
 
 		VkWriteDescriptorSet write = HelperFunctions::initializers::writeDescriptorSet(debugPipeline.descriptorSets[0], &info);
-		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+		vkUpdateDescriptorSets(logicalDevice, 1, &write, 0, nullptr);
 
 		debugPipeline.isDescriptorPoolEmpty = false;
 	}
@@ -991,7 +980,7 @@ void ShadowMap::CreateDebugResources(const VulkanSwapChain& swapChain)
 		renderPassInfo.dependencyCount = 2;
 		renderPassInfo.pDependencies = dependencies;
 
-		vkCreateRenderPass(device, &renderPassInfo, nullptr, &debugPipeline.renderPass);
+		vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass);
 	}
 
 	// framebuffer
@@ -1007,7 +996,7 @@ void ShadowMap::CreateDebugResources(const VulkanSwapChain& swapChain)
 			VK_IMAGE_VIEW_TYPE_2D, 1);
 
 		VkFramebufferCreateInfo sceneFramebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
-		sceneFramebufferInfo.renderPass = debugPipeline.renderPass;
+		sceneFramebufferInfo.renderPass = renderPass;
 		sceneFramebufferInfo.attachmentCount = 1;
 		sceneFramebufferInfo.pAttachments = &debugTex.imageView;
 		sceneFramebufferInfo.width = shadowMapDim;
@@ -1015,7 +1004,7 @@ void ShadowMap::CreateDebugResources(const VulkanSwapChain& swapChain)
 		sceneFramebufferInfo.layers = 1;
 
 		debugPipeline.framebuffers.resize(1);
-		vkCreateFramebuffer(device, &sceneFramebufferInfo, nullptr, &debugPipeline.framebuffers[0]);
+		vkCreateFramebuffer(logicalDevice, &sceneFramebufferInfo, nullptr, &debugPipeline.framebuffers[0]);
 	}
 }
 
@@ -1038,7 +1027,7 @@ void ShadowMap::CreateSceneDescriptorSets(const VulkanSwapChain& swapChain)
 	poolInfo.poolSizeCount = 2;
 	poolInfo.pPoolSizes = poolSizes;
 
-	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
+	if (vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor pool");
 
 	graphicsPipeline.isDescriptorPoolEmpty = false;
@@ -1069,7 +1058,7 @@ void ShadowMap::CreateSceneDescriptorSets(const VulkanSwapChain& swapChain)
 	layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
 	layoutInfo.pBindings = bindings.data();
 
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
+	if (vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set layout!");
 #pragma endregion
 
@@ -1083,9 +1072,9 @@ void ShadowMap::CreateSceneDescriptorSets(const VulkanSwapChain& swapChain)
 		HelperFunctions::createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			graphicsPipeline.uniformBuffers[i].buffer, graphicsPipeline.uniformBuffers[i].bufferMemory);
 
-		vkMapMemory(device, graphicsPipeline.uniformBuffers[i].bufferMemory, 0, sizeof(uboScene), 0, &graphicsPipeline.uniformBuffers[i].mappedMemory);
+		vkMapMemory(logicalDevice, graphicsPipeline.uniformBuffers[i].bufferMemory, 0, sizeof(uboScene), 0, &graphicsPipeline.uniformBuffers[i].mappedMemory);
 		memcpy(graphicsPipeline.uniformBuffers[i].mappedMemory, &uboScene, sizeof(uboScene));
-		vkUnmapMemory(device, graphicsPipeline.uniformBuffers[i].bufferMemory);
+		vkUnmapMemory(logicalDevice, graphicsPipeline.uniformBuffers[i].bufferMemory);
 	}
 
 
@@ -1097,7 +1086,7 @@ void ShadowMap::CreateSceneDescriptorSets(const VulkanSwapChain& swapChain)
 
 	graphicsPipeline.descriptorSets.resize(swapChainSize);
 
-	if (vkAllocateDescriptorSets(device, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
+	if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate descriptor sets");
 
 #pragma endregion
@@ -1123,7 +1112,7 @@ void ShadowMap::CreateSceneDescriptorSets(const VulkanSwapChain& swapChain)
 			HelperFunctions::initializers::writeDescriptorSet(graphicsPipeline.descriptorSets[i], &imageInfo, 1)
 		};
 
-		vkUpdateDescriptorSets(device, 2, writeDescriptors, 0, nullptr);
+		vkUpdateDescriptorSets(logicalDevice, 2, writeDescriptors, 0, nullptr);
 	}
 #pragma endregion
 }
@@ -1156,7 +1145,7 @@ void ShadowMap::CreateSceneFramebuffers(const VulkanSwapChain& swapChain)
 	VkImageView attachments[3];
 
 	VkFramebufferCreateInfo sceneFramebufferInfo = { VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
-	sceneFramebufferInfo.renderPass = graphicsPipeline.renderPass;
+	sceneFramebufferInfo.renderPass = renderPass;
 	sceneFramebufferInfo.attachmentCount = 3;
 	sceneFramebufferInfo.pAttachments = attachments;
 	sceneFramebufferInfo.width = dim.width;
@@ -1169,7 +1158,7 @@ void ShadowMap::CreateSceneFramebuffers(const VulkanSwapChain& swapChain)
 		attachments[1] = graphicsPipeline.depthStencilBufferView;
 		attachments[2] = swapChain.swapChainImageViews[i];
 
-		if (vkCreateFramebuffer(device, &sceneFramebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
+		if (vkCreateFramebuffer(logicalDevice, &sceneFramebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create one or more framebuffers");
 	}
 }
@@ -1270,7 +1259,7 @@ void ShadowMap::CreateSceneRenderPass(const VulkanSwapChain& swapChain)
 	renderPassInfo.dependencyCount = 3;
 	renderPassInfo.pDependencies = dependencies.data();
 
-	graphicsPipeline.result = vkCreateRenderPass(device, &renderPassInfo, nullptr, &graphicsPipeline.renderPass);
+	graphicsPipeline.result = vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass);
 	if (graphicsPipeline.result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create render pass");
 }

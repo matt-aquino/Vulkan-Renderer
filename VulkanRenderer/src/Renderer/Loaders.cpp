@@ -58,6 +58,8 @@ Model* ModelLoader::loadModel(std::string folder, std::string file)
 	// load in vertex and material data
 	if (tinyobj::LoadObj(&attrib, &shapes, &mats, &warn, &err, (directory + filePath).c_str(), (directory + folder).c_str()))
 	{
+		Model* model = new Model();
+
 		// load in materials
 		for (tinyobj::material_t mat : mats)
 		{
@@ -122,74 +124,74 @@ Model* ModelLoader::loadModel(std::string folder, std::string file)
 				// otherwise, create a brand new texture
 				if (mat.ambient_texname != "")
 				{
-					material->ambientTex->copyImageData(TextureLoader::loadTexture(folder, mat.ambient_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->ambientTex = TextureLoader::loadTexture(folder, mat.ambient_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.diffuse_texname != "")
 				{
-					material->diffuseTex->copyImageData(TextureLoader::loadTexture(folder, mat.diffuse_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->diffuseTex = TextureLoader::loadTexture(folder, mat.diffuse_texname, TextureType::DIFFUSE, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 				
 				if (mat.specular_texname != "")
 				{
-					material->specularTex->copyImageData(TextureLoader::loadTexture(folder, mat.specular_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->specularTex = TextureLoader::loadTexture(folder, mat.specular_texname, TextureType::SPECULAR, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.specular_highlight_texname != "")
 				{
-					material->specularHighlightTex->copyImageData(TextureLoader::loadTexture(folder, mat.specular_highlight_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->specularHighlightTex = TextureLoader::loadTexture(folder, mat.specular_highlight_texname, TextureType::SPECULAR_HIGHLIGHT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.normal_texname != "")
 				{
-					material->normalTex->copyImageData(TextureLoader::loadTexture(folder, mat.normal_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->normalTex = TextureLoader::loadTexture(folder, mat.normal_texname, TextureType::NORMAL, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.roughness_texname != "")
 				{
-					material->roughnessTex->copyImageData(TextureLoader::loadTexture(folder, mat.roughness_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->roughnessTex = TextureLoader::loadTexture(folder, mat.roughness_texname, TextureType::ROUGHNESS, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.metallic_texname != "")
 				{
-					material->metallicTex->copyImageData(TextureLoader::loadTexture(folder, mat.metallic_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->metallicTex = TextureLoader::loadTexture(folder, mat.metallic_texname, TextureType::METALLIC, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.displacement_texname != "")
 				{
-					material->displacementTex->copyImageData(TextureLoader::loadTexture(folder, mat.displacement_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->displacementTex = TextureLoader::loadTexture(folder, mat.displacement_texname, TextureType::DISPLACEMENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.emissive_texname != "")
 				{
-					material->emissiveTex->copyImageData(TextureLoader::loadTexture(folder, mat.emissive_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->emissiveTex = TextureLoader::loadTexture(folder, mat.emissive_texname, TextureType::EMISSIVE, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.reflection_texname != "")
 				{
-					 material->reflectionTex->copyImageData(TextureLoader::loadTexture(folder, mat.reflection_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-					 	VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					 material->reflectionTex = TextureLoader::loadTexture(folder, mat.reflection_texname, TextureType::REFLECTION, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+					 	VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.sheen_texname != "")
 				{
-					material->sheenTex->copyImageData(TextureLoader::loadTexture(folder, mat.sheen_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->sheenTex = TextureLoader::loadTexture(folder, mat.sheen_texname, TextureType::SHEEN, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 
 				if (mat.alpha_texname != "")
 				{
-					material->alphaTex->copyImageData(TextureLoader::loadTexture(folder, mat.alpha_texname, TextureType::AMBIENT, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
-						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT));
+					material->alphaTex = TextureLoader::loadTexture(folder, mat.alpha_texname, TextureType::ALPHA, VK_IMAGE_TYPE_2D, VK_FORMAT_R8G8B8A8_SRGB,
+						VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_ASPECT_COLOR_BIT, VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 				}
 			}
 
@@ -246,15 +248,17 @@ Model* ModelLoader::loadModel(std::string folder, std::string file)
 
 			else
 			{
-				newMesh->material = new Material();
+				newMesh->material = model->emptyMaterial;
 				newMesh->material->createDescriptorSet(emptyTexture);
 			}
 
 			newMesh->createDescriptorSet();
 			meshes.push_back(newMesh);
 		}
-
-		return new Model(meshes);
+		
+		model->meshes = meshes;
+		model->materials = materials;
+		return model;
 	}
 
 	else

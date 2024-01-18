@@ -5,7 +5,6 @@
 DeferredRendering::DeferredRendering(const std::string sceneName, const VulkanSwapChain& swapChain)
 {
 	this->sceneName = sceneName;
-	device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	srand(unsigned int(time(NULL)));
 	CreateSyncObjects();
 
@@ -24,7 +23,7 @@ DeferredRendering::DeferredRendering(const std::string sceneName, const VulkanSw
 
 	CreateCommandBuffers();
 	CreateSceneObjects(swapChain);
-	ui = new UI(commandPool, swapChain, compositionPipeline, VK_SAMPLE_COUNT_1_BIT);
+	ui = new UI(commandPool, swapChain, renderPass, compositionPipeline, VK_SAMPLE_COUNT_1_BIT);
 
 }
 
@@ -53,29 +52,30 @@ void DeferredRendering::RecreateScene(const VulkanSwapChain& swapChain)
 	CreateCompositionPipeline(swapChain);
 
 	CreateCommandBuffers();
-	ui = new UI(commandPool, swapChain, compositionPipeline, VK_SAMPLE_COUNT_1_BIT);
+	ui = new UI(commandPool, swapChain, renderPass, compositionPipeline, VK_SAMPLE_COUNT_1_BIT);
 }
 
 void DeferredRendering::DestroyScene(bool isRecreation)
 {
-	offscreenPipeline.destroyGraphicsPipeline(device);
-	compositionPipeline.destroyGraphicsPipeline(device);
+	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
+	offscreenPipeline.destroyGraphicsPipeline(logicalDevice);
+	compositionPipeline.destroyGraphicsPipeline(logicalDevice);
 
 	colorTexture.destroyTexture();
 	normalTexture.destroyTexture();
 	positionTexture.destroyTexture();
-	vkDestroySampler(device, textureSampler, nullptr);
+	vkDestroySampler(logicalDevice, textureSampler, nullptr);
 
 	uint32_t size = static_cast<uint32_t>(commandBuffersList.size());
-	vkFreeCommandBuffers(device, commandPool, size, commandBuffersList.data());
+	vkFreeCommandBuffers(logicalDevice, commandPool, size, commandBuffersList.data());
 
 	if (!isRecreation)
 	{
 		for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
-			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
-			vkDestroyFence(device, inFlightFences[i], nullptr);
+			vkDestroySemaphore(logicalDevice, renderCompleteSemaphores[i], nullptr);
+			vkDestroySemaphore(logicalDevice, presentCompleteSemaphores[i], nullptr);
+			vkDestroyFence(logicalDevice, inFlightFences[i], nullptr);
 		}
 
 		for (int i = 0; i < 100; i++)
@@ -109,14 +109,14 @@ void DeferredRendering::CreateSceneObjects(const VulkanSwapChain& swapChain)
 			col = -5;
 			row++;
 		}
-		glm::vec4 position = glm::vec4(col, 1, row, 1);
+		glm::vec4 position = glm::vec4((float)col, 1.0f, (float)row, 1.0f);
 
-		//float r = glm::clamp(float((rand() % 255 + 128) / 255.0f), 0.0f, 1.0f);
-		//float g = glm::clamp(float((rand() % 255 + 128) / 255.0f), 0.0f, 1.0f);
-		//float b = glm::clamp(float((rand() % 255 + 128) / 255.0f), 0.0f, 1.0f);
-		//glm::vec4 color = glm::vec4(r, g, b, 1.0f);
-		glm::vec4 color = glm::vec4(1.0, 0.0, 0.0, 1.0);
-		float radius = 1.0f;
+		float r = glm::clamp(float((rand() % 255 + 128) / 255.0f), 0.0f, 1.0f);
+		float g = glm::clamp(float((rand() % 255 + 128) / 255.0f), 0.0f, 1.0f);
+		float b = glm::clamp(float((rand() % 255 + 128) / 255.0f), 0.0f, 1.0f);
+
+		glm::vec4 color = glm::vec4(r, g, b, 1.0f);
+		float radius = 3.0f;
 		float intensity = 1.0f;
 
 		compositionUBO.lights[i] = { position, color, radius, intensity };
@@ -125,7 +125,9 @@ void DeferredRendering::CreateSceneObjects(const VulkanSwapChain& swapChain)
 		model = glm::translate(glm::vec3(position)) * scale;
 		spheres[i] = BasicShapes::createSphere();
 		spheres[i].setModelMatrix(model);
-		spheres[i].setMaterialWithPreset(MaterialPresets::WHITE_PLASTIC);
+
+		int material = rand() % 28;
+		spheres[i].setMaterialWithPreset((MaterialPresets)material);
 
 		col++;
 	}
@@ -157,9 +159,9 @@ void DeferredRendering::CreateSyncObjects()
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+		if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(logicalDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create sync objects for a frame");
 	}
 }
@@ -173,7 +175,7 @@ void DeferredRendering::CreateCommandBuffers()
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = (uint32_t)commandBuffersList.size();
 
-	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate command buffers");
 }
 
@@ -194,7 +196,7 @@ VulkanReturnValues DeferredRendering::PresentScene(const VulkanSwapChain& swapCh
 	/*
 	********** PREPARATION ************
 	*/
-	compositionPipeline.result = vkAcquireNextImageKHR(device, swapChain.swapChain,
+	compositionPipeline.result = vkAcquireNextImageKHR(logicalDevice, swapChain.swapChain,
 		UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 	if (compositionPipeline.result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -205,7 +207,7 @@ VulkanReturnValues DeferredRendering::PresentScene(const VulkanSwapChain& swapCh
 
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
-		vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 
 	Update(imageIndex); // update matrices as needed
 	RecordCommandBuffer(imageIndex);
@@ -230,7 +232,7 @@ VulkanReturnValues DeferredRendering::PresentScene(const VulkanSwapChain& swapCh
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	vkResetFences(device, 1, &inFlightFences[currentFrame]);
+	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
 
 	if (vkQueueSubmit(queues.renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer!");
@@ -302,7 +304,7 @@ void DeferredRendering::RecordCommandBuffer(uint32_t index)
 
 	// render G-Buffer textures offscreen
 	{
-		rpBI.renderPass = offscreenPipeline.renderPass;
+		rpBI.renderPass = renderPass;
 		rpBI.framebuffer = offscreenPipeline.framebuffers[index];
 		rpBI.renderArea.extent = offscreenPipeline.scissors.extent;
 		rpBI.clearValueCount = 4;
@@ -326,7 +328,7 @@ void DeferredRendering::RecordCommandBuffer(uint32_t index)
 
 	// compose the final scene
 	{
-		rpBI.renderPass = compositionPipeline.renderPass;
+		rpBI.renderPass = renderPass;
 		rpBI.framebuffer = compositionPipeline.framebuffers[index];
 		rpBI.renderArea.extent = compositionPipeline.scissors.extent;
 		rpBI.clearValueCount = 1;
@@ -538,7 +540,7 @@ void DeferredRendering::CreateOffscreenPipelineResources(const VulkanSwapChain& 
 		poolCreateInfo.poolSizeCount = 1;
 		poolCreateInfo.pPoolSizes = &poolSize;
 		poolCreateInfo.maxSets = 3;
-		if (vkCreateDescriptorPool(device, &poolCreateInfo, nullptr, &offscreenPipeline.descriptorPool) != VK_SUCCESS)
+		if (vkCreateDescriptorPool(logicalDevice, &poolCreateInfo, nullptr, &offscreenPipeline.descriptorPool) != VK_SUCCESS)
 			throw std::runtime_error("failed to create offscreen pipeline descriptor pool");
 		offscreenPipeline.isDescriptorPoolEmpty = false;
 
@@ -551,7 +553,7 @@ void DeferredRendering::CreateOffscreenPipelineResources(const VulkanSwapChain& 
 		VkDescriptorSetLayoutCreateInfo layoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 		layoutCreateInfo.bindingCount = 1;
 		layoutCreateInfo.pBindings = &binding;
-		vkCreateDescriptorSetLayout(device, &layoutCreateInfo, nullptr, &offscreenPipeline.descriptorSetLayout);
+		vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &offscreenPipeline.descriptorSetLayout);
 
 
 		VkDescriptorSetAllocateInfo allocInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
@@ -560,7 +562,7 @@ void DeferredRendering::CreateOffscreenPipelineResources(const VulkanSwapChain& 
 		allocInfo.pSetLayouts = &offscreenPipeline.descriptorSetLayout;
 		offscreenPipeline.descriptorSets.resize(1);
 
-		if (vkAllocateDescriptorSets(device, &allocInfo, &offscreenPipeline.descriptorSets[0]) != VK_SUCCESS)
+		if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, &offscreenPipeline.descriptorSets[0]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to allocate descriptor set");
 
 		VkDescriptorBufferInfo bufferInfo = {};
@@ -568,7 +570,7 @@ void DeferredRendering::CreateOffscreenPipelineResources(const VulkanSwapChain& 
 		bufferInfo.offset = 0;
 		bufferInfo.range = sizeof(deferredUBO);
 		VkWriteDescriptorSet write = HelperFunctions::initializers::writeDescriptorSet(offscreenPipeline.descriptorSets[0], &bufferInfo);
-		vkUpdateDescriptorSets(device, 1, &write, 0, nullptr);
+		vkUpdateDescriptorSets(logicalDevice, 1, &write, 0, nullptr);
 	}
 }
 
@@ -693,7 +695,7 @@ void DeferredRendering::CreateOffscreenRenderPass(const VulkanSwapChain& swapCha
 	rpCreateInfo.subpassCount = 1;
 	rpCreateInfo.pSubpasses = &subpassDesc;
 
-	if (vkCreateRenderPass(device, &rpCreateInfo, nullptr, &offscreenPipeline.renderPass) != VK_SUCCESS)
+	if (vkCreateRenderPass(logicalDevice, &rpCreateInfo, nullptr, &renderPass) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create offscreen render pass");
 }
 
@@ -756,7 +758,7 @@ void DeferredRendering::CreateOffscreenPipeline(const VulkanSwapChain& swapChain
 	Mesh* box = BasicShapes::getBox();
 	VkDescriptorSetLayout layouts[] = { offscreenPipeline.descriptorSetLayout, box->descriptorSetLayout, box->material->descriptorSetLayout };
 	auto layoutInfo = HelperFunctions::initializers::pipelineLayoutCreateInfo(3, layouts);
-	if (vkCreatePipelineLayout(device, &layoutInfo, nullptr, &offscreenPipeline.pipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &offscreenPipeline.pipelineLayout) != VK_SUCCESS)
 		throw std::runtime_error("failed to create offscreen pipeline layout");
 
 	VkGraphicsPipelineCreateInfo info = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
@@ -771,14 +773,14 @@ void DeferredRendering::CreateOffscreenPipeline(const VulkanSwapChain& swapChain
 	info.stageCount = 2;
 	info.pStages = shaderStages;
 	info.layout = offscreenPipeline.pipelineLayout;
-	info.renderPass = offscreenPipeline.renderPass;
+	info.renderPass = renderPass;
 	info.subpass = 0;
 
-	if (vkCreateGraphicsPipelines(device, nullptr, 1, &info, nullptr, &offscreenPipeline.pipeline) != VK_SUCCESS)
+	if (vkCreateGraphicsPipelines(logicalDevice, nullptr, 1, &info, nullptr, &offscreenPipeline.pipeline) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create offscreen graphics pipeline");
 
-	vkDestroyShaderModule(device, vertModule, nullptr);
-	vkDestroyShaderModule(device, fragModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, vertModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, fragModule, nullptr);
 }
 
 void DeferredRendering::CreateOffscreenFramebuffers(const VulkanSwapChain& swapChain)
@@ -792,13 +794,13 @@ void DeferredRendering::CreateOffscreenFramebuffers(const VulkanSwapChain& swapC
 	fbInfo.layers = 1;
 	fbInfo.width = dim.width;
 	fbInfo.height = dim.height;
-	fbInfo.renderPass = offscreenPipeline.renderPass;
+	fbInfo.renderPass = renderPass;
 
 	size_t numImages = swapChain.swapChainImages.size();
 	offscreenPipeline.framebuffers.resize(numImages);
 	for (int i = 0; i < numImages; i++)
 	{
-		if (vkCreateFramebuffer(device, &fbInfo, nullptr, &offscreenPipeline.framebuffers[i]) != VK_SUCCESS)
+		if (vkCreateFramebuffer(logicalDevice, &fbInfo, nullptr, &offscreenPipeline.framebuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("failed to create one or more framebuffers");
 	}
 }
@@ -834,7 +836,7 @@ void DeferredRendering::CreateCompositionPipelineResources(const VulkanSwapChain
 		poolCreateInfo.poolSizeCount = 2;
 		poolCreateInfo.pPoolSizes = poolSizes;
 		poolCreateInfo.maxSets = 12; // 1 uniform buffer + 3 textures PER frame = 12 total sets
-		if (vkCreateDescriptorPool(device, &poolCreateInfo, nullptr, &compositionPipeline.descriptorPool) != VK_SUCCESS)
+		if (vkCreateDescriptorPool(logicalDevice, &poolCreateInfo, nullptr, &compositionPipeline.descriptorPool) != VK_SUCCESS)
 			throw std::runtime_error("failed to create composition pipeline descriptor pool");
 
 		compositionPipeline.isDescriptorPoolEmpty = false;
@@ -867,7 +869,7 @@ void DeferredRendering::CreateCompositionPipelineResources(const VulkanSwapChain
 		VkDescriptorSetLayoutCreateInfo layoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 		layoutCreateInfo.bindingCount = 4;
 		layoutCreateInfo.pBindings = bindings;
-		if (vkCreateDescriptorSetLayout(device, &layoutCreateInfo, nullptr, &compositionPipeline.descriptorSetLayout) != VK_SUCCESS)
+		if (vkCreateDescriptorSetLayout(logicalDevice, &layoutCreateInfo, nullptr, &compositionPipeline.descriptorSetLayout) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create composition pipeline descriptor set layout");
 
 		std::vector<VkDescriptorSetLayout> layouts(numImages, compositionPipeline.descriptorSetLayout);
@@ -878,7 +880,7 @@ void DeferredRendering::CreateCompositionPipelineResources(const VulkanSwapChain
 		allocInfo.pSetLayouts = layouts.data();
 		compositionPipeline.descriptorSets.resize(numImages);
 
-		if (vkAllocateDescriptorSets(device, &allocInfo, compositionPipeline.descriptorSets.data()) != VK_SUCCESS)
+		if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, compositionPipeline.descriptorSets.data()) != VK_SUCCESS)
 			throw std::runtime_error("Failed to allocate descriptor set");
 		
 		VkDescriptorBufferInfo bufferInfo = {};
@@ -935,7 +937,7 @@ void DeferredRendering::CreateCompositionPipelineResources(const VulkanSwapChain
 			writes[3].pBufferInfo = &bufferInfo;
 
 
-			vkUpdateDescriptorSets(device, 4, writes, 0, nullptr);
+			vkUpdateDescriptorSets(logicalDevice, 4, writes, 0, nullptr);
 		}
 		
 	}
@@ -981,7 +983,7 @@ void DeferredRendering::CreateCompositionRenderPass(const VulkanSwapChain& swapC
 	rpCreateInfo.subpassCount = 1;
 	rpCreateInfo.pSubpasses = &subpassDesc;
 	
-	if (vkCreateRenderPass(device, &rpCreateInfo, nullptr, &compositionPipeline.renderPass) != VK_SUCCESS)
+	if (vkCreateRenderPass(logicalDevice, &rpCreateInfo, nullptr, &renderPass) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create composition render pass");
 
 }
@@ -1035,7 +1037,7 @@ void DeferredRendering::CreateCompositionPipeline(const VulkanSwapChain& swapCha
 	};
 
 	auto layoutInfo = HelperFunctions::initializers::pipelineLayoutCreateInfo(1, &compositionPipeline.descriptorSetLayout);
-	if (vkCreatePipelineLayout(device, &layoutInfo, nullptr, &compositionPipeline.pipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &compositionPipeline.pipelineLayout) != VK_SUCCESS)
 		throw std::runtime_error("failed to create composition pipeline layout");
 
 	VkGraphicsPipelineCreateInfo pipelineInfo = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
@@ -1050,14 +1052,14 @@ void DeferredRendering::CreateCompositionPipeline(const VulkanSwapChain& swapCha
 	pipelineInfo.stageCount = 2;
 	pipelineInfo.pStages = shaderStages;
 	pipelineInfo.layout = compositionPipeline.pipelineLayout;
-	pipelineInfo.renderPass = compositionPipeline.renderPass;
+	pipelineInfo.renderPass = renderPass;
 	pipelineInfo.subpass = 0;
 
-	if (vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineInfo, nullptr, &compositionPipeline.pipeline) != VK_SUCCESS)
+	if (vkCreateGraphicsPipelines(logicalDevice, nullptr, 1, &pipelineInfo, nullptr, &compositionPipeline.pipeline) != VK_SUCCESS)
 		throw std::runtime_error("failed to create composition pipeline");
 
-	vkDestroyShaderModule(device, vertModule, nullptr);
-	vkDestroyShaderModule(device, fragModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, vertModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, fragModule, nullptr);
 }
 
 void DeferredRendering::CreateCompositionFramebuffers(const VulkanSwapChain& swapChain)
@@ -1071,12 +1073,12 @@ void DeferredRendering::CreateCompositionFramebuffers(const VulkanSwapChain& swa
 	fbInfo.width = dim.width;
 	fbInfo.height = dim.height;
 	fbInfo.layers = 1;
-	fbInfo.renderPass = compositionPipeline.renderPass;
+	fbInfo.renderPass = renderPass;
 	
 	for (size_t i = 0; i < numImages; i++)
 	{
 		fbInfo.pAttachments = &swapChain.swapChainImageViews[i];
-		if (vkCreateFramebuffer(device, &fbInfo, nullptr, &compositionPipeline.framebuffers[i]) != VK_SUCCESS)
+		if (vkCreateFramebuffer(logicalDevice, &fbInfo, nullptr, &compositionPipeline.framebuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create one of more framebuffers");
 	}
 }

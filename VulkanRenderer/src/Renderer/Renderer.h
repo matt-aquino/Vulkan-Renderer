@@ -55,6 +55,7 @@ private:
 	// Rendering
 	static SDL_Window* appWindow;
 	VkSurfaceKHR renderSurface;
+
 	float dt = 0.0f;
 	int lastX = 0, lastY = 0;
 	std::chrono::steady_clock::time_point startTime, currentTime, lastTime;
@@ -69,6 +70,8 @@ private:
 
 	// Vulkan Info
 	static VkInstance instance;
+	VkPhysicalDevice physicalDevice;
+	VkDevice logicalDevice;
 	VkResult result;
 
 #define VKDUMP 0 // "VK_LAYER_LUNARG_api_dump" will print the result of every vk... function, to get more thorough results

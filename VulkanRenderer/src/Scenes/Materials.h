@@ -9,16 +9,18 @@ public:
 	MaterialScene(std::string name, const VulkanSwapChain& swapChain);
 	~MaterialScene();
 
-	// Inherited via VulkanScene
-	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
-	virtual void RecordScene() override;
 	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
-	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
-	virtual void DestroyScene(bool isRecreation) override;
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
 	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
 private:
+
+	// Inherited via VulkanScene
+	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
+	virtual void RecordScene() override;
+	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
+	virtual void DestroyScene(bool isRecreation) override;
+
 	void CreateRenderPass(const VulkanSwapChain& swapChain);
 	void CreateDescriptorSets(const VulkanSwapChain& swapChain);
 	void CreateFramebuffers(const VulkanSwapChain& swapChain);
@@ -38,6 +40,8 @@ private:
 
 	// scene data
 	VulkanGraphicsPipeline graphicsPipeline;
+	VkRenderPass renderPass;
+
 	SpotLight light;
 	std::vector<Mesh> objects;
 	uint32_t currentFrame = 0;

@@ -24,19 +24,21 @@ class HelloWorldTriangle : public VulkanScene
 {
 
 public:
-	HelloWorldTriangle();
 	HelloWorldTriangle(std::string name, const VulkanSwapChain& swapChain);
+	~HelloWorldTriangle() { DestroyScene(false); }
 
-	virtual void RecordScene() override;
-	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
 	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
-	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
-	virtual void DestroyScene(bool isRecreation) override;
 
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
 	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
 private:
+	
+	virtual void DestroyScene(bool isRecreation) override;
+	virtual void RecordScene() override;
+	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
+	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
+
 	// ** Create all aspects of the graphics pipeline **
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);
 
@@ -63,10 +65,14 @@ private:
 
 
 	VulkanGraphicsPipeline graphicsPipeline;
-	const glm::vec3 cameraPosition = { 0.0f, 0.0f, -5.0f };
+	VkRenderPass renderPass;
 
+	std::vector<VkFramebuffer> framebuffers;
+
+	VkSampler imageSampler;
 	size_t currentFrame = 0;
 
+	const glm::vec3 cameraPosition = { 0.0f, 0.0f, -5.0f };
 	
 	struct UniformBufferObject
 	{
@@ -84,6 +90,8 @@ private:
 		{{0.0f, 0.5f, 0.0f,1.0f}, {0.0f, 1.0f, 0.0f,1.0f}},
 		{{-0.5f, -0.5f, 0.0f,1.0f}, {1.0f, 0.0f, 0.0f,1.0f}}
 	};
+
+	VulkanBuffer vertexBuffer = {};
 };
 
 

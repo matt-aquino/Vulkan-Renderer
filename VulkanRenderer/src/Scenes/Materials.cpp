@@ -17,7 +17,7 @@ MaterialScene::MaterialScene(std::string name, const VulkanSwapChain& swapChain)
 
 	CreateCommandBuffers();
 
-	ui = new UI(commandPool, swapChain, graphicsPipeline);
+	ui = new UI(commandPool, swapChain, renderPass, graphicsPipeline);
 }
 
 MaterialScene::~MaterialScene()
@@ -39,7 +39,7 @@ void MaterialScene::RecreateScene(const VulkanSwapChain& swapChain)
 
 	CreateCommandBuffers();
 
-	ui = new UI(commandPool, swapChain, graphicsPipeline);
+	ui = new UI(commandPool, swapChain, renderPass, graphicsPipeline);
 }
 
 void MaterialScene::RecordScene()
@@ -48,7 +48,7 @@ void MaterialScene::RecordScene()
 
 VulkanReturnValues MaterialScene::PresentScene(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 
 	/* Scene Main Loop
 	*  1. Acquire image from swap chain
@@ -57,7 +57,7 @@ VulkanReturnValues MaterialScene::PresentScene(const VulkanSwapChain& swapChain)
 	*/
 
 	uint32_t imageIndex;
-	graphicsPipeline.result = vkAcquireNextImageKHR(device, swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+	graphicsPipeline.result = vkAcquireNextImageKHR(logicalDevice, swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 	if (graphicsPipeline.result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
@@ -72,7 +72,7 @@ VulkanReturnValues MaterialScene::PresentScene(const VulkanSwapChain& swapChain)
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
 	{
-		vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 	}
 
 	UpdateUniforms(imageIndex); // update matrices as needed
@@ -96,7 +96,7 @@ VulkanReturnValues MaterialScene::PresentScene(const VulkanSwapChain& swapChain)
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	vkResetFences(device, 1, &inFlightFences[currentFrame]);
+	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
 
 	if (vkQueueSubmit(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer!");
@@ -135,13 +135,12 @@ void MaterialScene::DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& 
 
 void MaterialScene::DestroyScene(bool isRecreation)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
-	graphicsPipeline.destroyGraphicsPipeline(device);
+	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
+	graphicsPipeline.destroyGraphicsPipeline(logicalDevice);
 	msaaTex.destroyTexture();
 
 	uint32_t size = static_cast<uint32_t>(commandBuffersList.size());
-	vkFreeCommandBuffers(device, commandPool, size, commandBuffersList.data());
+	vkFreeCommandBuffers(logicalDevice, commandPool, size, commandBuffersList.data());
 
 	delete ui;
 	// these only NEED to be deleted once cleanup happens
@@ -149,9 +148,9 @@ void MaterialScene::DestroyScene(bool isRecreation)
 	{
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
-			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
-			vkDestroyFence(device, inFlightFences[i], nullptr);
+			vkDestroySemaphore(logicalDevice, renderCompleteSemaphores[i], nullptr);
+			vkDestroySemaphore(logicalDevice, presentCompleteSemaphores[i], nullptr);
+			vkDestroyFence(logicalDevice, inFlightFences[i], nullptr);
 		}
 
 		for (int i = 0; i < objects.size(); i++)
@@ -237,7 +236,7 @@ void MaterialScene::HandleMouseInput(uint32_t buttons, const int x, const int y,
 
 void MaterialScene::CreateRenderPass(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 	VkSampleCountFlagBits counts = HelperFunctions::getMaximumSampleCount();
 
 	// color buffer - multisampled
@@ -322,13 +321,13 @@ void MaterialScene::CreateRenderPass(const VulkanSwapChain& swapChain)
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
 
-	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &graphicsPipeline.renderPass) != VK_SUCCESS)
+	if (vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create render pass");
 }
 
 void MaterialScene::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 	uint32_t descriptorCount = static_cast<uint32_t>(swapChain.swapChainImages.size());
 
 	// create descriptor sets for UBO
@@ -344,7 +343,7 @@ void MaterialScene::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	layoutInfo.bindingCount = 1;
 	layoutInfo.pBindings = &uboBinding;
 
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
+	if (vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set layout!");
 
 	VkDeviceSize bufferSize = sizeof(uboScene);
@@ -355,9 +354,9 @@ void MaterialScene::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		HelperFunctions::createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			graphicsPipeline.uniformBuffers[i].buffer, graphicsPipeline.uniformBuffers[i].bufferMemory);
 
-		vkMapMemory(device, graphicsPipeline.uniformBuffers[i].bufferMemory, 0, sizeof(uboScene), 0, &graphicsPipeline.uniformBuffers[i].mappedMemory);
+		vkMapMemory(logicalDevice, graphicsPipeline.uniformBuffers[i].bufferMemory, 0, sizeof(uboScene), 0, &graphicsPipeline.uniformBuffers[i].mappedMemory);
 		memcpy(graphicsPipeline.uniformBuffers[i].mappedMemory, &uboScene, sizeof(uboScene));
-		vkUnmapMemory(device, graphicsPipeline.uniformBuffers[i].bufferMemory);
+		vkUnmapMemory(logicalDevice, graphicsPipeline.uniformBuffers[i].bufferMemory);
 	}
 
 	// allocate a descriptor set for each frame
@@ -374,7 +373,7 @@ void MaterialScene::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	poolInfo.pPoolSizes = poolSizes;
 	poolInfo.maxSets = 2 * descriptorCount;
 
-	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
+	if (vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor pool");
 	graphicsPipeline.isDescriptorPoolEmpty = false;
 	
@@ -386,7 +385,7 @@ void MaterialScene::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	allocInfo.pSetLayouts = layout.data();
 	graphicsPipeline.descriptorSets.resize(descriptorCount);
 
-	if (vkAllocateDescriptorSets(device, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
+	if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate descriptor sets");
 
 	for (size_t i = 0; i < descriptorCount; i++)
@@ -404,13 +403,13 @@ void MaterialScene::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		descriptorWrite.descriptorCount = 1;
 		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWrite.pBufferInfo = &bufferInfo;
-		vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+		vkUpdateDescriptorSets(logicalDevice, 1, &descriptorWrite, 0, nullptr);
 	}
 }
 
 void MaterialScene::CreateFramebuffers(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 	VkExtent2D dim = swapChain.swapChainDimensions;
 	graphicsPipeline.framebuffers.resize(swapChain.swapChainImageViews.size());
 
@@ -426,14 +425,14 @@ void MaterialScene::CreateFramebuffers(const VulkanSwapChain& swapChain)
 
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = graphicsPipeline.renderPass;
+		framebufferInfo.renderPass = renderPass;
 		framebufferInfo.attachmentCount = 3;
 		framebufferInfo.pAttachments = attachments;
 		framebufferInfo.width = dim.width;
 		framebufferInfo.height = dim.height;
 		framebufferInfo.layers = 1;
 
-		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
+		if (vkCreateFramebuffer(logicalDevice, &framebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create one or more framebuffers");
 	}
 }
@@ -468,7 +467,7 @@ void MaterialScene::CreateFramebufferResources(const VulkanSwapChain& swapChain)
 
 void MaterialScene::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 	VkSampleCountFlagBits counts = HelperFunctions::getMaximumSampleCount();
 	VkExtent2D dim = swapChain.swapChainDimensions;
 
@@ -521,7 +520,7 @@ void MaterialScene::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	layoutInfo.setLayoutCount = 3;
 	layoutInfo.pSetLayouts = setLayouts;
 
-	if (vkCreatePipelineLayout(device, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics pipeline layout");
 
 #pragma endregion
@@ -551,24 +550,24 @@ void MaterialScene::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	pipelineInfo.pDynamicState = nullptr;
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	pipelineInfo.basePipelineIndex = -1;
-	pipelineInfo.renderPass = graphicsPipeline.renderPass;
+	pipelineInfo.renderPass = renderPass;
 	pipelineInfo.layout = graphicsPipeline.pipelineLayout;
 	pipelineInfo.subpass = 0;
 	pipelineInfo.pViewportState = &viewportState;
 	pipelineInfo.stageCount = 2;
 	pipelineInfo.pStages = shaderStages;
 
-	if (vkCreateGraphicsPipelines(device, nullptr, 1, &pipelineInfo, nullptr, &graphicsPipeline.pipeline) != VK_SUCCESS)
+	if (vkCreateGraphicsPipelines(logicalDevice, nullptr, 1, &pipelineInfo, nullptr, &graphicsPipeline.pipeline) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics pipeline");
 
-	vkDestroyShaderModule(device, vertShaderModule, nullptr);
-	vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
 #pragma endregion
 }
 
 void MaterialScene::CreateSyncObjects(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 
 	// create semaphores
 	renderCompleteSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
@@ -584,9 +583,9 @@ void MaterialScene::CreateSyncObjects(const VulkanSwapChain& swapChain)
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+		if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(logicalDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create sync objects for a frame");
 	}
 }
@@ -618,7 +617,7 @@ void MaterialScene::CreateObjects()
 
 void MaterialScene::CreateUniforms(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 	Camera* camera = Camera::GetCamera();
 
 	VkExtent2D dim = swapChain.swapChainDimensions;
@@ -670,7 +669,7 @@ void MaterialScene::UpdateUniforms(uint32_t index)
 
 void MaterialScene::CreateCommandBuffers()
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 
 	commandBuffersList.resize(graphicsPipeline.framebuffers.size());
 
@@ -680,7 +679,7 @@ void MaterialScene::CreateCommandBuffers()
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = (uint32_t)commandBuffersList.size();
 
-	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate command buffers");
 }
 
@@ -696,7 +695,7 @@ void MaterialScene::RecordCommandBuffers(uint32_t index)
 
 	VkRenderPassBeginInfo renderPassInfo = {};
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	renderPassInfo.renderPass = graphicsPipeline.renderPass;
+	renderPassInfo.renderPass = renderPass;
 	renderPassInfo.framebuffer = graphicsPipeline.framebuffers[index];
 	renderPassInfo.renderArea.offset = { 0, 0 };
 	renderPassInfo.renderArea.extent = graphicsPipeline.scissors.extent;

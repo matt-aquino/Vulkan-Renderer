@@ -304,13 +304,11 @@ namespace BasicShapes
 
 		if (shape::sphere)
 		{
-			shape::sphere->destroyModel();
 			delete shape::sphere;
 		}
 
 		if (shape::torus)
 		{
-			shape::torus->destroyModel();
 			delete shape::torus;
 		}
 
@@ -322,19 +320,16 @@ namespace BasicShapes
 
 		if (shape::cone)
 		{
-			shape::cone->destroyModel();
 			delete shape::cone;
 		}
 		
 		if (shape::monkey)
 		{
-			shape::monkey->destroyModel();
 			delete shape::monkey;
 		}
 		
 		if (shape::cylinder)
 		{
-			shape::cylinder->destroyModel();
 			delete shape::cylinder;
 		}
 	}

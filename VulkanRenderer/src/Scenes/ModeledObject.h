@@ -24,19 +24,19 @@ class ModeledObject : public VulkanScene
 {
 public:
 	ModeledObject(std::string name, const VulkanSwapChain& swapChain);
-	ModeledObject();
 	~ModeledObject();
 
-	virtual void RecordScene() override;
-	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
 	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
-	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
-	virtual void DestroyScene(bool isRecreation) override;
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
 	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
 private:
-	Model *object;
+	Model *object = nullptr;
+
+	virtual void RecordScene() override;
+	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
+	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
+	virtual void DestroyScene(bool isRecreation) override;
 
 	// TO DO: split up functions to separately create UBO, samplers, etc
 	void CreateGraphicsPipeline(const VulkanSwapChain& swapChain);
@@ -49,6 +49,15 @@ private:
 	void CreateCommandBuffers();
 
 	VulkanGraphicsPipeline graphicsPipeline;
+	VkRenderPass renderPass;
+
+	std::vector<VkFramebuffer> framebuffers;
+	struct FramebufferAttachment
+	{
+		VkImage image;
+		VkImageView imageView;
+		VkDeviceMemory memory;
+	} depthFBAttachment;
 
 	struct UniformBufferObject
 	{
@@ -57,15 +66,6 @@ private:
 		alignas(16)glm::mat4 projection;
 		alignas(16)glm::vec3 cameraPosition;
 	} ubo;
-
-	struct MaterialConstants
-	{
-		alignas(16)glm::vec3 ambient;
-		alignas(16)glm::vec3 diffuse;
-		alignas(16)glm::vec3 specular;
-		alignas(4)float shininess;
-	} materialConstants;
-
 	
 	size_t currentFrame = 0;
 };

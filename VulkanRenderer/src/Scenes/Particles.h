@@ -11,16 +11,17 @@ public:
 	Particles(std::string name, const VulkanSwapChain & swapChain);
 	~Particles();
 
-	virtual void RecordScene() override;
-	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
-	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
 	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
-	virtual void DestroyScene(bool isRecreation) override;
-
 	void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
 	void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
 private:
+
+	virtual void RecordScene() override;
+	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
+	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
+	virtual void DestroyScene(bool isRecreation) override;
+
 	void CreateCommandBuffers();
 	void CreateParticles(bool isRecreation);
 	void CreateRenderPass(const VulkanSwapChain& swapChain);
@@ -39,6 +40,7 @@ private:
 
 	VulkanGraphicsPipeline graphicsPipeline;
 	VulkanComputePipeline computePipeline;
+	VkRenderPass renderPass;
 
 	struct UBO
 	{

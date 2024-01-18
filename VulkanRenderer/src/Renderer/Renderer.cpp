@@ -16,7 +16,8 @@
 
 #include "Renderer.h"
 
-#include "Scenes/DeferredRendering.h"
+//#include "Scenes/PBR.h"
+#include "Scenes/ModeledObject.h"
 
 SDL_Window* Renderer::appWindow = nullptr;
 VkInstance Renderer::instance = VK_NULL_HANDLE;
@@ -26,12 +27,17 @@ Renderer::Renderer()
     CreateAppWindow();
     CreateVKInstance();
     CreateVKSurface();
-    VulkanDevice::GetVulkanDevice()->CreateVulkanDevice(instance, renderSurface);
-    
+    VulkanDevice* vkdevice = VulkanDevice::GetVulkanDevice();
+    vkdevice->CreateVulkanDevice(instance, renderSurface);
+    physicalDevice = vkdevice->GetPhysicalDevice();
+    logicalDevice = vkdevice->GetLogicalDevice();
+
     CreateSwapChain();
     CreateImages();
 
-    DeferredRendering* scene = new DeferredRendering("Deferred Rendering", vulkanSwapChain);
+    //PBR* scene = new PBR("Physically Based Rendering", vulkanSwapChain);
+    ModeledObject* scene = new ModeledObject("Zelda Chest", vulkanSwapChain);
+    
     scenesList.push_back(scene);
 }
 
@@ -217,8 +223,6 @@ void Renderer::RunApp()
 
 void Renderer::CleanUp()
 {
-    VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
     // Clear all scenes
     for (VulkanScene* scene : scenesList)
     {
@@ -231,10 +235,10 @@ void Renderer::CleanUp()
     // order is very particular...
     for (VkImageView imageView : vulkanSwapChain.swapChainImageViews)
     {
-        vkDestroyImageView(device, imageView, nullptr);
+        vkDestroyImageView(logicalDevice, imageView, nullptr);
     }
 
-    vkDestroySwapchainKHR(device, vulkanSwapChain.swapChain, nullptr);
+    vkDestroySwapchainKHR(logicalDevice, vulkanSwapChain.swapChain, nullptr);
 
     VulkanDevice::GetVulkanDevice()->DeleteLogicalDevice();
 
@@ -248,19 +252,16 @@ void Renderer::CleanUp()
 
 void Renderer::CreateSwapChain()
 {
-    VkPhysicalDevice physical = VulkanDevice::GetVulkanDevice()->GetPhysicalDevice();
-    VkDevice logical = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
     // Query for swap chain capabilities
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical, renderSurface, &vulkanSwapChain.surfaceCapabilities);
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, renderSurface, &vulkanSwapChain.surfaceCapabilities);
     uint32_t formatCount, presentModesCount;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(physical, renderSurface, &formatCount, nullptr);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(physical, renderSurface, &presentModesCount, nullptr);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, renderSurface, &formatCount, nullptr);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, renderSurface, &presentModesCount, nullptr);
 
     if (formatCount != 0)
     {
         vulkanSwapChain.surfaceFormats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(physical, renderSurface, &formatCount, vulkanSwapChain.surfaceFormats.data());
+        vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, renderSurface, &formatCount, vulkanSwapChain.surfaceFormats.data());
     }
 
     else
@@ -269,7 +270,7 @@ void Renderer::CreateSwapChain()
     if (presentModesCount != 0)
     {
         vulkanSwapChain.surfacePresentModes.resize(presentModesCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(physical, renderSurface, &presentModesCount, vulkanSwapChain.surfacePresentModes.data());
+        vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, renderSurface, &presentModesCount, vulkanSwapChain.surfacePresentModes.data());
     }
 
     else
@@ -357,13 +358,13 @@ void Renderer::CreateSwapChain()
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
     
-    result = vkCreateSwapchainKHR(logical, &createInfo, nullptr, &vulkanSwapChain.swapChain); // this is breaking...
+    result = vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &vulkanSwapChain.swapChain); // this is breaking...
     if (result != VK_SUCCESS)
         throw std::runtime_error("Failed to create swap chain!");
 
-    vkGetSwapchainImagesKHR(logical, vulkanSwapChain.swapChain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(logicalDevice, vulkanSwapChain.swapChain, &imageCount, nullptr);
     vulkanSwapChain.swapChainImages.resize(imageCount);
-    vkGetSwapchainImagesKHR(logical, vulkanSwapChain.swapChain, &imageCount, vulkanSwapChain.swapChainImages.data());
+    vkGetSwapchainImagesKHR(logicalDevice, vulkanSwapChain.swapChain, &imageCount, vulkanSwapChain.swapChainImages.data());
 
     vulkanSwapChain.swapChainImageFormat = surfaceFormat.format;
     vulkanSwapChain.swapChainDimensions = vulkanSwapChain.surfaceCapabilities.currentExtent;

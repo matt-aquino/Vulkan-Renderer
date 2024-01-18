@@ -16,9 +16,6 @@
 
 #include "HelloWorldTriangle.h"
 
-HelloWorldTriangle::HelloWorldTriangle()
-{
-}
 
 HelloWorldTriangle::HelloWorldTriangle(std::string name, const VulkanSwapChain& swapChain)
 {
@@ -50,8 +47,8 @@ void HelloWorldTriangle::RecordScene()
 
 		VkRenderPassBeginInfo renderPassInfo = {};
 		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		renderPassInfo.renderPass = graphicsPipeline.renderPass;
-		renderPassInfo.framebuffer = graphicsPipeline.framebuffers[i];
+		renderPassInfo.renderPass = renderPass;
+		renderPassInfo.framebuffer = framebuffers[i];
 		renderPassInfo.renderArea.offset = { 0, 0 };
 		renderPassInfo.renderArea.extent = graphicsPipeline.scissors.extent;
 
@@ -63,7 +60,7 @@ void HelloWorldTriangle::RecordScene()
 		vkCmdBindPipeline(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipeline);
 
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &graphicsPipeline.vertexBuffer.buffer, offsets);
+		vkCmdBindVertexBuffers(commandBuffersList[i], 0, 1, &vertexBuffer.buffer, offsets);
 		vkCmdPushConstants(commandBuffersList[i], graphicsPipeline.pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pushConstants);
 		vkCmdBindDescriptorSets(commandBuffersList[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline.pipelineLayout, 
 			0, 1, &graphicsPipeline.descriptorSets[i], 0, nullptr);
@@ -99,8 +96,6 @@ void HelloWorldTriangle::DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLay
 
 VulkanReturnValues HelloWorldTriangle::PresentScene(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
 	/* Scene Main Loop
 	*  1. Acquire image from swap chain
 	*  2. Select appropriate command buffer, execute it
@@ -108,14 +103,14 @@ VulkanReturnValues HelloWorldTriangle::PresentScene(const VulkanSwapChain& swapC
 	*/
 
 	uint32_t imageIndex;
-	graphicsPipeline.result = vkAcquireNextImageKHR(device, swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+	VkResult result = vkAcquireNextImageKHR(logicalDevice, swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
-	if (graphicsPipeline.result == VK_ERROR_OUT_OF_DATE_KHR)
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
 		return VulkanReturnValues::VK_SWAPCHAIN_OUT_OF_DATE;
 	}
 
-	else if (graphicsPipeline.result != VK_SUCCESS && graphicsPipeline.result != VK_SUBOPTIMAL_KHR)
+	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
 	{
 		throw std::runtime_error("Failed to acquire swap chain image");
 	}
@@ -125,7 +120,7 @@ VulkanReturnValues HelloWorldTriangle::PresentScene(const VulkanSwapChain& swapC
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
 	{
-		vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 	}
 
 	// mark image as now being in use by this frame
@@ -146,7 +141,7 @@ VulkanReturnValues HelloWorldTriangle::PresentScene(const VulkanSwapChain& swapC
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 	
-	vkResetFences(device, 1, &inFlightFences[currentFrame]);
+	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
 
 	if (vkQueueSubmit(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer!");
@@ -162,12 +157,12 @@ VulkanReturnValues HelloWorldTriangle::PresentScene(const VulkanSwapChain& swapC
 	presentInfo.pImageIndices = &imageIndex;
 	presentInfo.pResults = nullptr;
 
-	graphicsPipeline.result = vkQueuePresentKHR(VulkanDevice::GetVulkanDevice()->GetQueues().presentQueue, &presentInfo);
+	result = vkQueuePresentKHR(VulkanDevice::GetVulkanDevice()->GetQueues().presentQueue, &presentInfo);
 
-	if (graphicsPipeline.result == VK_ERROR_OUT_OF_DATE_KHR || graphicsPipeline.result == VK_SUBOPTIMAL_KHR)
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 		return VulkanReturnValues::VK_SWAPCHAIN_OUT_OF_DATE;
 
-	else if (graphicsPipeline.result != VK_SUCCESS)
+	else if (result != VK_SUCCESS)
 		throw std::runtime_error("Failed to present swap chain image");
 
 	currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -177,7 +172,7 @@ VulkanReturnValues HelloWorldTriangle::PresentScene(const VulkanSwapChain& swapC
 
 void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 	Camera* const camera = Camera::GetCamera();
 
 	// Steps for Creating Uniform Buffers
@@ -204,7 +199,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	layoutInfo.bindingCount = 1;
 	layoutInfo.pBindings = &uboBinding;
 
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
+	if (vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set layout!");
 
 	size_t swapChainSize = swapChain.swapChainImages.size();
@@ -229,7 +224,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	poolInfo.pPoolSizes = &poolSize;
 	poolInfo.maxSets = static_cast<uint32_t>(swapChainSize);
 
-	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
+	if (vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor pool");
 
 	std::vector<VkDescriptorSetLayout> layout(swapChainSize, graphicsPipeline.descriptorSetLayout);
@@ -240,7 +235,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 	allocInfo.pSetLayouts = layout.data();
 	graphicsPipeline.descriptorSets.resize(swapChainSize);
 
-	if (vkAllocateDescriptorSets(device, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
+	if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate descriptor sets");
 
 	for (size_t i = 0; i < swapChainSize; i++)
@@ -260,7 +255,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 		descriptorWrite.pBufferInfo = &bufferInfo;
 		descriptorWrite.pImageInfo = nullptr; // used for descriptors that refer to image data
 		descriptorWrite.pTexelBufferView = nullptr; // used for descriptors that refer to buffer views
-		vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+		vkUpdateDescriptorSets(logicalDevice, 1, &descriptorWrite, 0, nullptr);
 	}
 
 	graphicsPipeline.isDescriptorPoolEmpty = false;
@@ -268,7 +263,7 @@ void HelloWorldTriangle::CreateUniforms(const VulkanSwapChain& swapChain)
 
 void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 	Camera* const camera = Camera::GetCamera();
 
 	// Calculate time since last frame
@@ -280,27 +275,34 @@ void HelloWorldTriangle::UpdateUniforms(uint32_t currentImage)
 	ubo.view = camera->GetViewMatrix();
 	
 	void* data;
-	vkMapMemory(device, graphicsPipeline.uniformBuffers[currentImage].bufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
+	vkMapMemory(logicalDevice, graphicsPipeline.uniformBuffers[currentImage].bufferMemory, 0, sizeof(UniformBufferObject), 0, &data);
 	memcpy(data, &ubo, sizeof(UniformBufferObject));
-	vkUnmapMemory(device, graphicsPipeline.uniformBuffers[currentImage].bufferMemory);
+	vkUnmapMemory(logicalDevice, graphicsPipeline.uniformBuffers[currentImage].bufferMemory);
 	
 }
 
 void HelloWorldTriangle::DestroyScene(bool isRecreation) 
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-	graphicsPipeline.destroyGraphicsPipeline(device);
+	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
+	graphicsPipeline.destroyGraphicsPipeline(logicalDevice);
 
 	size_t size = commandBuffersList.size();
-	vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(size), commandBuffersList.data());
+	vkFreeCommandBuffers(logicalDevice, commandPool, static_cast<uint32_t>(size), commandBuffersList.data());
 	
+	for (size_t i = 0; i < framebuffers.size(); i++)
+	{
+		vkDestroyFramebuffer(logicalDevice, framebuffers[i], nullptr);
+	}
+	
+	vertexBuffer.destroy();
+
 	if (!isRecreation)
 	{
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
-			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
-			vkDestroyFence(device, inFlightFences[i], nullptr);
+			vkDestroySemaphore(logicalDevice, renderCompleteSemaphores[i], nullptr);
+			vkDestroySemaphore(logicalDevice, presentCompleteSemaphores[i], nullptr);
+			vkDestroyFence(logicalDevice, inFlightFences[i], nullptr);
 		}
 	}
 }
@@ -334,18 +336,28 @@ void HelloWorldTriangle::HandleMouseInput(uint32_t buttons, const int x, const i
 	static float deltaX = 0.0f;
 	static float deltaY = 0.0f;
 
-	// check if current motion is less than/greater than last motion
-	float sensivity = 0.1f;
+	isCameraMoving = ((buttons & SDL_BUTTON_RMASK) != 0);
 
-	deltaX = x * sensivity;
-	deltaY = y * sensivity;
+	if (isCameraMoving)
+	{
+		SDL_SetRelativeMouseMode(SDL_TRUE);
 
-	Camera::GetCamera()->RotateCamera(deltaX, deltaY);
+		float sensivity = 0.1f;
+		deltaX = x * sensivity;
+		deltaY = y * sensivity;
+
+		sceneCamera->RotateCamera(deltaX, deltaY);
+	}
+
+	else
+	{
+		SDL_SetRelativeMouseMode(SDL_FALSE);
+	}
 }
 
 void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 #pragma region SHADERS
 	auto vertShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Triangle/basic_triangle_vertex.spv");
 	VkShaderModule vertShaderModule = HelperFunctions::CreateShaderModules(vertShaderCode);
@@ -478,8 +490,7 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	layoutInfo.setLayoutCount = 1;
 	layoutInfo.pSetLayouts = &graphicsPipeline.descriptorSetLayout;
 
-	graphicsPipeline.result = vkCreatePipelineLayout(device, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
-	if (graphicsPipeline.result != VK_SUCCESS)
+	if (vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create pipeline layout");
 
 
@@ -498,18 +509,16 @@ void HelloWorldTriangle::CreateGraphicsPipeline(const VulkanSwapChain& swapChain
 	graphicsPipelineInfo.pColorBlendState = &colorBlendingInfo; // color blending
 	//graphicsPipelineInfo.pDynamicState = nullptr; // dynamic states used for changing specific aspects of the pipeline at draw time
 	graphicsPipelineInfo.layout = graphicsPipeline.pipelineLayout;
-	graphicsPipelineInfo.renderPass = graphicsPipeline.renderPass;
+	graphicsPipelineInfo.renderPass = renderPass;
 	graphicsPipelineInfo.subpass = 0;
 	graphicsPipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // use this to create new pipeline from an existing pipeline
 	graphicsPipelineInfo.basePipelineIndex = -1;
 
-	// this is breaking...
-	graphicsPipeline.result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline.pipeline);
-	if (graphicsPipeline.result != VK_SUCCESS)
+	if (vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline.pipeline) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics pipeline");
 
-	vkDestroyShaderModule(device, vertShaderModule, nullptr);
-	vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
 }
 
 void HelloWorldTriangle::CreateRenderPass(const VulkanSwapChain& swapChain)
@@ -550,8 +559,7 @@ void HelloWorldTriangle::CreateRenderPass(const VulkanSwapChain& swapChain)
 	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 	dependency.dependencyFlags = 0;
 
-	VkRenderPassCreateInfo renderPassInfo = {};
-	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	VkRenderPassCreateInfo renderPassInfo = { VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO };
 	renderPassInfo.pNext = nullptr;
 	renderPassInfo.flags = 0;
 	renderPassInfo.attachmentCount = 1;
@@ -561,16 +569,13 @@ void HelloWorldTriangle::CreateRenderPass(const VulkanSwapChain& swapChain)
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;	
 
-	graphicsPipeline.result = vkCreateRenderPass(VulkanDevice::GetVulkanDevice()->GetLogicalDevice(), &renderPassInfo, nullptr, &graphicsPipeline.renderPass);
-	if (graphicsPipeline.result != VK_SUCCESS)
+	if (vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create render pass");
 }
 
 void HelloWorldTriangle::CreateFramebuffers(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
-	graphicsPipeline.framebuffers.resize(swapChain.swapChainImageViews.size());
+	framebuffers.resize(swapChain.swapChainImageViews.size());
 
 	for (size_t i = 0; i < swapChain.swapChainImageViews.size(); i++)
 	{
@@ -578,14 +583,14 @@ void HelloWorldTriangle::CreateFramebuffers(const VulkanSwapChain& swapChain)
 
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = graphicsPipeline.renderPass;
+		framebufferInfo.renderPass = renderPass;
 		framebufferInfo.attachmentCount = 1;
 		framebufferInfo.pAttachments = attachments;
 		framebufferInfo.width = swapChain.swapChainDimensions.width;
 		framebufferInfo.height = swapChain.swapChainDimensions.height;
 		framebufferInfo.layers = 1;
 
-		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
+		if (vkCreateFramebuffer(logicalDevice, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create one or more framebuffers");
 	}
 }
@@ -593,8 +598,7 @@ void HelloWorldTriangle::CreateFramebuffers(const VulkanSwapChain& swapChain)
 
 void HelloWorldTriangle::CreateCommandBuffers()
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-	commandBuffersList.resize(graphicsPipeline.framebuffers.size());
+	commandBuffersList.resize(framebuffers.size());
 
 	VkCommandBufferAllocateInfo allocInfo = {};
 	allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -602,14 +606,12 @@ void HelloWorldTriangle::CreateCommandBuffers()
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = (uint32_t)commandBuffersList.size();
 
-	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate command buffers");
 }
 
 void HelloWorldTriangle::CreateSyncObjects(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
 	// create semaphores
 	renderCompleteSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 	presentCompleteSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
@@ -624,19 +626,15 @@ void HelloWorldTriangle::CreateSyncObjects(const VulkanSwapChain& swapChain)
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+		if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(logicalDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
 				throw std::runtime_error("Failed to create sync objects for a frame");
 	}
-
-
 }
 
 void HelloWorldTriangle::CreateVertexBuffer()
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
 	VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
 	// create a staging buffer to upload vertex data on GPU for high performance
@@ -647,19 +645,16 @@ void HelloWorldTriangle::CreateVertexBuffer()
 		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, stagingBuffer, stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+	vkMapMemory(logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, vertices.data(), (size_t)bufferSize);
-	vkUnmapMemory(device, stagingBufferMemory);
-
-	VulkanBuffer vertexBuffer;
+	vkUnmapMemory(logicalDevice, stagingBufferMemory);
 
 	HelperFunctions::createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT ,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vertexBuffer.buffer, vertexBuffer.bufferMemory);
 
 	HelperFunctions::copyBuffer(commandPool, stagingBuffer, vertexBuffer.buffer, bufferSize, VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue);
 
-	graphicsPipeline.vertexBuffer = vertexBuffer;
 
-	vkDestroyBuffer(device, stagingBuffer, nullptr);
-	vkFreeMemory(device, stagingBufferMemory, nullptr);
+	vkDestroyBuffer(logicalDevice, stagingBuffer, nullptr);
+	vkFreeMemory(logicalDevice, stagingBufferMemory, nullptr);
 }

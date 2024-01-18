@@ -4,24 +4,27 @@
 
 // Shadow Mapping requires us to render the scene offscreen from a light's perspective
 // and determine which areas of our scene are occluded (light is blocked)
+
+/* TO DO
+* now that i've removed the render pass from the graphics pipeline helper struct,
+* we might be able to get things working under a single render pass shared between 
+* both pipelines. 
+*/
 class ShadowMap : public VulkanScene
 {
 public:
-	ShadowMap();
 	ShadowMap(std::string name, const VulkanSwapChain& swapChain);
 	~ShadowMap();
 
-	virtual void RecordScene() override;
-	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
-	virtual void DestroyScene(bool isRecreation) override;
-
-	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
 	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) override;
-
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
 	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
 private:
+	virtual void RecordScene() override;
+	virtual void RecreateScene(const VulkanSwapChain& swapChain) override;
+	virtual void DestroyScene(bool isRecreation) override;
+	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) override;
 
 	void CreatePipelines(const VulkanSwapChain& swapChain);
 
@@ -49,6 +52,7 @@ private:
 
 	// scene data
 	VulkanGraphicsPipeline graphicsPipeline, debugPipeline;
+	VkRenderPass renderPass;
 	Texture msaaTex, debugTex;
 
 	bool isCameraMoving = false;

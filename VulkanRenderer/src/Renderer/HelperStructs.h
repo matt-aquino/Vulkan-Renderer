@@ -73,28 +73,12 @@ struct VulkanGraphicsPipeline
 	std::vector<VkDescriptorSet> descriptorSets;
 	VkDescriptorPool descriptorPool;
 
-	VkRenderPass renderPass;
-	std::vector<VkFramebuffer> framebuffers;
-
-	VkImage depthStencilBuffer;
-	VkImageView depthStencilBufferView;
-	VkDeviceMemory depthStencilBufferMemory;
-
 	VkViewport viewport;
 	VkRect2D scissors;
 
-	// for scenes where vertex data is passed in raw, instead of stored in a mesh
-	VulkanBuffer vertexBuffer = {};
-	VulkanBuffer indexBuffer = {};
-
 	std::vector<VulkanBuffer> uniformBuffers;
 
-	bool isDepthBufferEmpty = true,
-		 isDescriptorPoolEmpty = true;
-
-	size_t shaderFileSize;
-
-	VkResult result;
+	bool isDescriptorPoolEmpty = true;
 
 	void destroyGraphicsPipeline(const VkDevice& device);
 	
@@ -220,7 +204,7 @@ struct Material
 		alignas(16)glm::vec3 transmittance = glm::vec3(0.0f);
 		alignas(16)glm::vec3 emission = glm::vec3(0.0f);
 
-		float shininess = 1.0f;			   // specular exponent
+		float shininess = 0.5f;			   // specular exponent
 		float ior = 0.0f;				   // index of refraction
 		float dissolve = 1.0f;			   // 1 == opaque; 0 == fully transparent 
 		int illum = 0;					   // illumination model
@@ -232,27 +216,27 @@ struct Material
 		float anisotropy = 0.0f;           // aniso. [0, 1] default 0
 		float anisotropy_rotation = 0.0f;  // anisor. [0, 1] default 0
 		float pad0 = 0.0f;
-		int dummy;						   // Suppress padding warning.
+		int dummy = 0;					   // Suppress padding warning.
 	} ubo;
 
-	// textures						 // MTL values (see tiny_obj_loader.h)
-	Texture* ambientTex = nullptr;				 // map_Ka
-	Texture* diffuseTex = nullptr;				 // map_Kd
+	// textures								 // MTL values (see tiny_obj_loader.h)
+	Texture* ambientTex = nullptr;			 // map_Ka
+	Texture* diffuseTex = nullptr;			 // map_Kd
 	Texture* specularTex = nullptr;			 // map_Ks
-	Texture* specularHighlightTex = nullptr;    // map_Ns
-	Texture* normalTex = nullptr;				 // norm
-	Texture* alphaTex = nullptr;				 // map_d
+	Texture* specularHighlightTex = nullptr; // map_Ns
+	Texture* normalTex = nullptr;			 // norm
+	Texture* alphaTex = nullptr;			 // map_d
 	Texture* metallicTex = nullptr;			 // map_Pm
 	Texture* displacementTex = nullptr;		 // disp
 	Texture* emissiveTex = nullptr;			 // map_Ke
-	Texture* reflectionTex = nullptr;			 // refl
-	Texture* roughnessTex = nullptr;			 // map_Pr
-	Texture* sheenTex = nullptr;				 // map_Ps
+	Texture* reflectionTex = nullptr;		 // refl
+	Texture* roughnessTex = nullptr;		 // map_Pr
+	Texture* sheenTex = nullptr;			 // map_Ps
 
-	VkDescriptorSet descriptorSet;
-	VkDescriptorSetLayout descriptorSetLayout;
-	VkDescriptorPool descriptorPool;
-	VulkanBuffer uniformBuffer;
+	VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
+	VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+	VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+	VulkanBuffer uniformBuffer = {};
 
 	void destroy();
 
@@ -315,7 +299,8 @@ struct Mesh
 	void createDescriptorSet();
 	void destroyMesh();
 
-	void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false);
+	void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout pipelineLayout, bool useMaterial = false, 
+		int instanceCount = 1, int firstIndex = 0, int vertOffset = 0, int firstInstanceIndex = 0);
 	void setModelMatrix(glm::mat4 m);
 	void setMaterialColorWithValue(ColorType colorType, glm::vec3 color);
 	void setMaterialWithPreset(MaterialPresets preset);
@@ -324,9 +309,19 @@ struct Mesh
 
 struct Model
 {
+	Model() { emptyMaterial = new Material(); };
 	Model(std::vector<Mesh*> modelMeshes) 
 		: meshes(modelMeshes){}
+
+	~Model() { destroyModel(); };
+
 	std::vector<Mesh*> meshes;
+	Material* emptyMaterial = nullptr;
+
+	// some model meshes share a material, so make the Model class handle cleaning up materials
+	// while meshes just store pointers to their respective materials
+	std::vector<Material*> materials; 
+
 	void destroyModel();
 	void draw(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false);
 };

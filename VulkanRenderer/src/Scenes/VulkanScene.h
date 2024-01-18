@@ -26,6 +26,7 @@
 #include "SDL_scancode.h"
 #include "SDL_mouse.h"
 #include "Renderer/Timer.h"
+#include "Renderer/UI.h"
 
 #define SHADERPATH "shaders/"
 
@@ -35,21 +36,13 @@ public:
 	VulkanScene();
 	virtual ~VulkanScene();
 
+	// ** perform main loop of scene **
+	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) = 0;
 
 	// ** Recreate the scene when swap chain goes out of date **
 	virtual void RecreateScene(const VulkanSwapChain& swapChain) = 0;
 
-	// ** Perform initial setup of a scene
-	virtual void RecordScene() = 0;
-
-	// ** perform main loop of scene **
-	virtual VulkanReturnValues PresentScene(const VulkanSwapChain& swapChain) = 0;
 	
-	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) = 0;
-
-	// ** Clean up resources ** 
-	virtual void DestroyScene(bool isRecreation) = 0;
-
 	// handle user inputs
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) = 0;
 	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) = 0;
@@ -61,14 +54,26 @@ protected:
 	// ** Allocate memory to a command pool for command buffers **
 	void CreateCommandPool();
 
+	// ** Clean up resources ** 
+	virtual void DestroyScene(bool isRecreation) = 0;
+	
+	// ** Perform initial setup of a scene
+	virtual void RecordScene() = 0;
+
+	virtual void DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pipelineLayout, bool useMaterial = false) = 0;
+
 	// Command Buffers
 	VkCommandPool commandPool;
 	std::vector<VkCommandBuffer> commandBuffersList;
+	VkDevice logicalDevice;
 
 	// Synchronzation Objects
 	std::vector<VkSemaphore> renderCompleteSemaphores, presentCompleteSemaphores;
 	std::vector<VkFence> inFlightFences, imagesInFlight;
 	const int MAX_FRAMES_IN_FLIGHT = 3; // we need 1 fence per frame. since we're triple buffering, that means 3 fences
+	
+	Camera* sceneCamera;
+	bool isCameraMoving = true;
 };
 
 #endif // !VULKANSCENE_H

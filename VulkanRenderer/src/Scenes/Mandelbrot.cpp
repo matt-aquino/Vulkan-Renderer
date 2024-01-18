@@ -1,11 +1,6 @@
 #include "Mandelbrot.h"
 #include <limits>
 
-Mandelbrot::Mandelbrot()
-{
-	sceneName = "";
-}
-
 Mandelbrot::Mandelbrot(std::string name, const VulkanSwapChain& swapChain)
 {
 	sceneName = name;
@@ -34,13 +29,13 @@ void Mandelbrot::RecordScene()
 	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	renderPassInfo.renderArea.offset = { 0, 0 };
 	renderPassInfo.renderArea.extent = graphicsPipeline.scissors.extent;
-	renderPassInfo.renderPass = graphicsPipeline.renderPass;
+	renderPassInfo.renderPass = renderPass;
 
 	VkClearValue clearColors[2] = {};
 	clearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
 	clearColors[1].depthStencil = { 1.0f, 0 };
 
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 	VkDeviceSize offsets[] = { 0 };
 
 	VkCommandBufferBeginInfo beginInfo = {};
@@ -76,8 +71,6 @@ void Mandelbrot::RecordScene()
 
 void Mandelbrot::RecreateScene(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
 	DestroyScene(true);
 
 	CreateRenderPass(swapChain);
@@ -101,12 +94,11 @@ void Mandelbrot::DrawScene(VkCommandBuffer& commandBuffer, VkPipelineLayout& pip
 
 VulkanReturnValues Mandelbrot::PresentScene(const VulkanSwapChain& swapChain)
 {
-	static VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	static auto queues = VulkanDevice::GetVulkanDevice()->GetQueues();
 
 	uint32_t imageIndex;
 
-	graphicsPipeline.result = vkAcquireNextImageKHR(device, swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+	graphicsPipeline.result = vkAcquireNextImageKHR(logicalDevice, swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
 	if (graphicsPipeline.result == VK_ERROR_OUT_OF_DATE_KHR)
 		return VulkanReturnValues::VK_SWAPCHAIN_OUT_OF_DATE;
@@ -116,7 +108,7 @@ VulkanReturnValues Mandelbrot::PresentScene(const VulkanSwapChain& swapChain)
 
 	// check if a previous frame is using this image
 	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
-		vkWaitForFences(device, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+		vkWaitForFences(logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
 
 	UpdateUniforms(imageIndex);
 
@@ -138,7 +130,7 @@ VulkanReturnValues Mandelbrot::PresentScene(const VulkanSwapChain& swapChain)
 	submitInfo.signalSemaphoreCount = 1;
 	submitInfo.pSignalSemaphores = signalSemaphores;
 
-	vkResetFences(device, 1, &inFlightFences[currentFrame]);
+	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
 
 	if (vkQueueSubmit(queues.renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer!");
@@ -169,20 +161,19 @@ VulkanReturnValues Mandelbrot::PresentScene(const VulkanSwapChain& swapChain)
 
 void Mandelbrot::DestroyScene(bool isRecreation)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
-	graphicsPipeline.destroyGraphicsPipeline(device);
+	vkDestroyRenderPass(logicalDevice, renderPass, nullptr);
+	graphicsPipeline.destroyGraphicsPipeline(logicalDevice);
 
 	size_t size = commandBuffersList.size();
-	vkFreeCommandBuffers(device, commandPool, (uint32_t)size, commandBuffersList.data());
+	vkFreeCommandBuffers(logicalDevice, commandPool, (uint32_t)size, commandBuffersList.data());
 
 	if (!isRecreation)
 	{
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 		{
-			vkDestroySemaphore(device, renderCompleteSemaphores[i], nullptr);
-			vkDestroySemaphore(device, presentCompleteSemaphores[i], nullptr);
-			vkDestroyFence(device, inFlightFences[i], nullptr);
+			vkDestroySemaphore(logicalDevice, renderCompleteSemaphores[i], nullptr);
+			vkDestroySemaphore(logicalDevice, presentCompleteSemaphores[i], nullptr);
+			vkDestroyFence(logicalDevice, inFlightFences[i], nullptr);
 		}
 	}
 }
@@ -190,7 +181,7 @@ void Mandelbrot::DestroyScene(bool isRecreation)
 void Mandelbrot::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 {
 #pragma region SHADERS
-	auto vertShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Global/full_screen_quad.spv");
+	auto vertShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Global/full_screen_quad_vert.spv");
 	VkShaderModule vertShaderModule = HelperFunctions::CreateShaderModules(vertShaderCode);
 
 	auto fragShaderCode = HelperFunctions::readShaderFile(SHADERPATH"Mandelbrot/mandelbrot.spv");
@@ -319,7 +310,7 @@ void Mandelbrot::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	push.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 #pragma endregion
 
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 
 	VkPipelineShaderStageCreateInfo stages[] = { vertShaderStageInfo, fragShaderStageInfo };
 
@@ -331,7 +322,7 @@ void Mandelbrot::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	layoutInfo.pushConstantRangeCount = 1;
 	layoutInfo.pPushConstantRanges = &push;
 
-	graphicsPipeline.result = vkCreatePipelineLayout(device, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
+	graphicsPipeline.result = vkCreatePipelineLayout(logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.pipelineLayout);
 	if (graphicsPipeline.result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create pipeline layout");
 
@@ -349,23 +340,23 @@ void Mandelbrot::CreateGraphicsPipeline(const VulkanSwapChain& swapChain)
 	graphicsPipelineInfo.pColorBlendState = &colorBlendingInfo;
 	graphicsPipelineInfo.pDepthStencilState = &depthStencilInfo;
 	graphicsPipelineInfo.layout = graphicsPipeline.pipelineLayout;
-	graphicsPipelineInfo.renderPass = graphicsPipeline.renderPass;
+	graphicsPipelineInfo.renderPass = renderPass;
 	graphicsPipelineInfo.subpass = 0;
 	graphicsPipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
 	graphicsPipelineInfo.basePipelineIndex = -1;
 
 
-	graphicsPipeline.result = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline.pipeline);
+	graphicsPipeline.result = vkCreateGraphicsPipelines(logicalDevice, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &graphicsPipeline.pipeline);
 	if (graphicsPipeline.result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create graphics pipeline");
 
-	vkDestroyShaderModule(device, vertShaderModule, nullptr);
-	vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, vertShaderModule, nullptr);
+	vkDestroyShaderModule(logicalDevice, fragShaderModule, nullptr);
 }
 
 void Mandelbrot::CreateRenderPass(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 
 	VkAttachmentDescription colorAttachment;
 	colorAttachment.format = swapChain.swapChainImageFormat;
@@ -414,26 +405,23 @@ void Mandelbrot::CreateRenderPass(const VulkanSwapChain& swapChain)
 	renderPassInfo.dependencyCount = 1;
 	renderPassInfo.pDependencies = &dependency;
 
-	graphicsPipeline.result = vkCreateRenderPass(device, &renderPassInfo, nullptr, &graphicsPipeline.renderPass);
+	graphicsPipeline.result = vkCreateRenderPass(logicalDevice, &renderPassInfo, nullptr, &renderPass);
 	if (graphicsPipeline.result != VK_SUCCESS)
 		throw std::runtime_error("Failed to create render pass");
 }
 
 void Mandelbrot::UpdateUniforms(uint32_t currentFrame)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
-
 	printf("\rThreshold: %f", ubo.threshold);
 
 	void* data;
-	vkMapMemory(device, graphicsPipeline.uniformBuffers[currentFrame].bufferMemory, 0, sizeof(UBO), 0, &data);
+	vkMapMemory(logicalDevice, graphicsPipeline.uniformBuffers[currentFrame].bufferMemory, 0, sizeof(UBO), 0, &data);
 	memcpy(data, &ubo, sizeof(UBO));
-	vkUnmapMemory(device, graphicsPipeline.uniformBuffers[currentFrame].bufferMemory);
+	vkUnmapMemory(logicalDevice, graphicsPipeline.uniformBuffers[currentFrame].bufferMemory);
 }
 
 void Mandelbrot::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	ubo.xOffset = -0.5f;
 	ubo.yOffset = 0.0f;
 	ubo.zoom = 0.01f;
@@ -453,7 +441,7 @@ void Mandelbrot::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	layoutInfo.bindingCount = 1;
 	layoutInfo.pBindings = &uboBinding;
 
-	if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
+	if (vkCreateDescriptorSetLayout(logicalDevice, &layoutInfo, nullptr, &graphicsPipeline.descriptorSetLayout) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor set layout!");
 
 	size_t swapChainSize = swapChain.swapChainImages.size();
@@ -478,7 +466,7 @@ void Mandelbrot::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	poolInfo.pPoolSizes = &poolSize;
 	poolInfo.maxSets = static_cast<uint32_t>(swapChainSize);
 
-	if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
+	if (vkCreateDescriptorPool(logicalDevice, &poolInfo, nullptr, &graphicsPipeline.descriptorPool) != VK_SUCCESS)
 		throw std::runtime_error("Failed to create descriptor pool");
 
 	std::vector<VkDescriptorSetLayout> layout(swapChainSize, graphicsPipeline.descriptorSetLayout);
@@ -489,7 +477,7 @@ void Mandelbrot::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 	allocInfo.pSetLayouts = layout.data();
 	graphicsPipeline.descriptorSets.resize(swapChainSize);
 
-	if (vkAllocateDescriptorSets(device, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
+	if (vkAllocateDescriptorSets(logicalDevice, &allocInfo, graphicsPipeline.descriptorSets.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate descriptor sets");
 
 	for (size_t i = 0; i < swapChainSize; i++)
@@ -507,7 +495,7 @@ void Mandelbrot::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 		descriptorWrite.descriptorCount = 1;
 		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		descriptorWrite.pBufferInfo = &bufferInfo;
-		vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+		vkUpdateDescriptorSets(logicalDevice, 1, &descriptorWrite, 0, nullptr);
 	}
 
 	graphicsPipeline.isDescriptorPoolEmpty = false;
@@ -516,7 +504,6 @@ void Mandelbrot::CreateDescriptorSets(const VulkanSwapChain& swapChain)
 
 void Mandelbrot::CreateFramebuffers(const VulkanSwapChain& swapChain)
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	graphicsPipeline.framebuffers.resize(swapChain.swapChainImageViews.size());
 	VkExtent2D dim = swapChain.swapChainDimensions;
 
@@ -524,21 +511,20 @@ void Mandelbrot::CreateFramebuffers(const VulkanSwapChain& swapChain)
 	{
 		VkFramebufferCreateInfo framebufferInfo = {};
 		framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebufferInfo.renderPass = graphicsPipeline.renderPass;
+		framebufferInfo.renderPass = renderPass;
 		framebufferInfo.attachmentCount = 1;
 		framebufferInfo.pAttachments = &swapChain.swapChainImageViews[i];
 		framebufferInfo.width = dim.width;
 		framebufferInfo.height = dim.height;
 		framebufferInfo.layers = 1;
 
-		if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
+		if (vkCreateFramebuffer(logicalDevice, &framebufferInfo, nullptr, &graphicsPipeline.framebuffers[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create one or more framebuffers");
 	}
 }
 
 void Mandelbrot::CreateCommandBuffers()
 {
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
 	commandBuffersList.resize(graphicsPipeline.framebuffers.size());
 
 	VkCommandBufferAllocateInfo allocInfo = {};
@@ -547,7 +533,7 @@ void Mandelbrot::CreateCommandBuffers()
 	allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	allocInfo.commandBufferCount = (uint32_t)commandBuffersList.size();
 
-	if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(logicalDevice, &allocInfo, commandBuffersList.data()) != VK_SUCCESS)
 		throw std::runtime_error("Failed to allocate command buffers");
 }
 
@@ -564,13 +550,13 @@ void Mandelbrot::CreateSyncObjects(const VulkanSwapChain& swapChain)
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-	VkDevice device = VulkanDevice::GetVulkanDevice()->GetLogicalDevice();
+	
 
 	for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 	{
-		if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(device, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
-			vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
+		if (vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &renderCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(logicalDevice, &semaphoreInfo, nullptr, &presentCompleteSemaphores[i]) != VK_SUCCESS ||
+			vkCreateFence(logicalDevice, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS)
 			throw std::runtime_error("Failed to create sync objects for a frame");
 	}
 }
