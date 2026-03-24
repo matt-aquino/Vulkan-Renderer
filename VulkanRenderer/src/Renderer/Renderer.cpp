@@ -17,7 +17,8 @@
 #include "Renderer.h"
 
 //#include "Scenes/PBR.h"
-#include "Scenes/ModeledObject.h"
+//#include "Scenes/ModeledObject.h"
+#include "Scenes/HelloWorldTriangle.h"
 
 SDL_Window* Renderer::appWindow = nullptr;
 VkInstance Renderer::instance = VK_NULL_HANDLE;
@@ -27,8 +28,9 @@ Renderer::Renderer()
     CreateAppWindow();
     CreateVKInstance();
     CreateVKSurface();
+
     VulkanDevice* vkdevice = VulkanDevice::GetVulkanDevice();
-    vkdevice->CreateVulkanDevice(instance, renderSurface);
+    vkdevice->CreateDevices(instance, renderSurface);
     physicalDevice = vkdevice->GetPhysicalDevice();
     logicalDevice = vkdevice->GetLogicalDevice();
 
@@ -36,7 +38,9 @@ Renderer::Renderer()
     CreateImages();
 
     //PBR* scene = new PBR("Physically Based Rendering", vulkanSwapChain);
-    ModeledObject* scene = new ModeledObject("Zelda Chest", vulkanSwapChain);
+    //ModeledObject* scene = new ModeledObject("Zelda Chest", vulkanSwapChain);
+    HelloWorldTriangle* scene = new HelloWorldTriangle("Hello World", vulkanSwapChain);
+
     
     scenesList.push_back(scene);
 }
@@ -69,8 +73,9 @@ void Renderer::CreateAppWindow()
     extensionsList.resize(extensionCount);
 
     if (!SDL_Vulkan_GetInstanceExtensions(appWindow, &extensionCount, extensionsList.data()))
-        throw std::runtime_error("Could not get the names of required instance extensions from SDL.");
-    
+        throw std::runtime_error("Could not get the names of required instance extensions from SDL.");    
+
+    extensionsList.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 }
 
 void Renderer::CreateVKInstance()
@@ -79,11 +84,24 @@ void Renderer::CreateVKInstance()
         throw std::runtime_error("Validation layers requested, but not available");
 
     // VkApplicationInfo allows the programmer to specifiy some basic information about the
-  // program, which can be useful for layers and tools to provide more debug information.
+    // program, which can be useful for layers and tools to provide more debug information.
 
     VkApplicationInfo appInfo = {};
-    VkInstanceCreateInfo instanceInfo = {};
+    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    appInfo.pApplicationName = "Vulkan Renderer";
+    appInfo.applicationVersion = 1;
+    appInfo.pEngineName = "LunarG SDK";
+    appInfo.engineVersion = 1;
+    appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 4, 0);
 
+
+    // VkInstanceCreateInfo is where the programmer specifies the layers and/or extensions that
+    // are needed.
+    VkInstanceCreateInfo instanceInfo = {};
+    instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    instanceInfo.pApplicationInfo = &appInfo;
+    instanceInfo.enabledExtensionCount = static_cast<uint32_t>(extensionsList.size());
+    instanceInfo.ppEnabledExtensionNames = extensionsList.data();
     if (enableValidationLayers)
     {
         instanceInfo.enabledLayerCount = static_cast<uint32_t>(validationLayersList.size());
@@ -92,29 +110,23 @@ void Renderer::CreateVKInstance()
     else
         instanceInfo.enabledLayerCount = 0;
 
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    //appInfo.pNext = NULL;
-    appInfo.pApplicationName = "Vulkan Renderer";
-    appInfo.applicationVersion = 1;
-    appInfo.pEngineName = "LunarG SDK";
-    appInfo.engineVersion = 1;
-    appInfo.apiVersion = VK_MAKE_API_VERSION(0, 1, 3, 211);
-
-    // VkInstanceCreateInfo is where the programmer specifies the layers and/or extensions that
-    // are needed.
-    instanceInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    instanceInfo.pApplicationInfo = &appInfo;
-    instanceInfo.enabledExtensionCount = static_cast<uint32_t>(extensionsList.size());
-    instanceInfo.ppEnabledExtensionNames = extensionsList.data();
-
     // Create the Vulkan instance.
     result = vkCreateInstance(&instanceInfo, NULL, &instance);
 
-    if (result == VK_ERROR_INCOMPATIBLE_DRIVER)
+    switch (result)
+    {
+    case VK_SUCCESS:
+        break;
+
+    case VK_ERROR_INCOMPATIBLE_DRIVER:
         throw std::runtime_error("Unable to find a compatible Vulkan Driver.");
 
-    else if (result != VK_SUCCESS)
+    case VK_ERROR_EXTENSION_NOT_PRESENT:
+        throw std::runtime_error("An extension was not present during instance creation");
+
+    default:
         throw std::runtime_error("Could not create a Vulkan instance (for unknown reasons).");
+    }
 }
 
 void Renderer::CreateVKSurface()
@@ -142,7 +154,6 @@ void Renderer::RunApp()
         {
             switch (event.type) 
             {
-                // user hit X window
                 case SDL_QUIT:
                     isAppRunning = false;
                     break;
@@ -170,26 +181,25 @@ void Renderer::RunApp()
                     }
                     break;
 
-                case SDL_WINDOWEVENT:
+                
+                case SDL_WINDOWEVENT:                    
                     if (event.window.event == SDL_WINDOWEVENT_MINIMIZED)
-                    {
                         windowMinimized = true;
-                    }
 
-                    if (event.window.event == SDL_WINDOWEVENT_RESTORED)
+                    if (event.window.event == SDL_WINDOWEVENT_RESTORED || event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
                     {
                         RecreateSwapChain();
+                        scenesList[sceneIndex]->ResetFrameCount();
                         windowMinimized = false;
                     }
                     break;
 
                 case SDL_MOUSEWHEEL:
-                    mouseWheelX = event.wheel.x;
-                    mouseWheelY = event.wheel.y;
+                    mouseWheelX = (float)event.wheel.x;
+                    mouseWheelY = (float)event.wheel.y;
                     break;
 
                 default:
-                    // Do nothing.
                     break;
             }
         }
@@ -200,7 +210,6 @@ void Renderer::RunApp()
 
         // handle user input before next frame
         int currentMouseX, currentMouseY;
-
         const Uint8* keystates = SDL_GetKeyboardState(NULL);
         uint32_t buttons = SDL_GetRelativeMouseState(&currentMouseX, &currentMouseY);
         
@@ -358,7 +367,7 @@ void Renderer::CreateSwapChain()
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
     
-    result = vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &vulkanSwapChain.swapChain); // this is breaking...
+    result = vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &vulkanSwapChain.swapChain);
     if (result != VK_SUCCESS)
         throw std::runtime_error("Failed to create swap chain!");
 

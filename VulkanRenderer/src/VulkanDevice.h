@@ -47,7 +47,7 @@ private:
 	// since the Renderer class performs the main app loop, I decided to make it a friend
 	// of VulkanDevice so that it may invoke CreateVulkanDevice at startup
 	friend class Renderer;
-	void CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSurface);
+	void CreateDevices(VkInstance appInstance, VkSurfaceKHR appSurface);
 	void DeleteLogicalDevice();
 
 	VulkanDevice();

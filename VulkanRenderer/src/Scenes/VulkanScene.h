@@ -41,7 +41,8 @@ public:
 
 	// ** Recreate the scene when swap chain goes out of date **
 	virtual void RecreateScene(const VulkanSwapChain& swapChain) = 0;
-
+	
+	virtual void ResetFrameCount() = 0;
 	
 	// handle user inputs
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) = 0;

@@ -32,7 +32,7 @@ VulkanDevice::~VulkanDevice()
     delete device;
 }
 
-void VulkanDevice::CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSurface)
+void VulkanDevice::CreateDevices(VkInstance appInstance, VkSurfaceKHR appSurface)
 {
     // find suitable physical device
     uint32_t deviceCount = 0;
@@ -44,13 +44,22 @@ void VulkanDevice::CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSu
     vkEnumeratePhysicalDevices(appInstance, &deviceCount, possibleDevices.data());
     device->physicalDevice = possibleDevices[0]; // designed for my computer, which only has 1 GPU
 
+
+
     // grab device properties
-    VkPhysicalDeviceProperties properties;
-    VkPhysicalDeviceFeatures features;
+    VkPhysicalDeviceProperties properties = {};
+    VkPhysicalDeviceFeatures2 features = {};
+    features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+
+    VkPhysicalDeviceTimelineSemaphoreFeatures timelineSemaphoreFeatures = {};
+    timelineSemaphoreFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+    timelineSemaphoreFeatures.timelineSemaphore = VK_TRUE;
+    features.pNext = &timelineSemaphoreFeatures;
+
 
     vkGetPhysicalDeviceProperties(device->physicalDevice, &properties);
-    vkGetPhysicalDeviceFeatures(device->physicalDevice, &features);
-    features.samplerAnisotropy = VK_TRUE;
+    vkGetPhysicalDeviceFeatures2(device->physicalDevice, &features);
+    features.features.samplerAnisotropy = VK_TRUE;
 
     QueueFamilyIndices indices = findQueueFamilies(appSurface);
 
@@ -69,14 +78,17 @@ void VulkanDevice::CreateVulkanDevice(VkInstance appInstance, VkSurfaceKHR appSu
         queueCreateInfos.push_back(queueCreateInfo);
     }
 
+    requiredDeviceExtensions.push_back(VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME);    
+
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
-    createInfo.pEnabledFeatures = &features;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredDeviceExtensions.size());
     createInfo.ppEnabledExtensionNames = requiredDeviceExtensions.data();
     createInfo.enabledLayerCount = 0;
+    createInfo.pNext = &features;
+
     VkResult result = vkCreateDevice(device->physicalDevice, &createInfo, nullptr, &device->logicalDevice);
 
     if (result != VK_SUCCESS)

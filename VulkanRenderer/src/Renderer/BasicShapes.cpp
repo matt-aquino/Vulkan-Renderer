@@ -285,11 +285,12 @@ namespace BasicShapes
 
 	void loadShapes(VkCommandPool& commandPool)
 	{
+		// TO DO: cleanup validation errors are triggering because of these. 
 		shape::commandPool = commandPool;
 		if (!shape::box)      shape::createBox();
 		if (!shape::sphere)   shape::createSphere();
 		if (!shape::torus)    shape::createTorus();
-		if (!shape::plane)    shape::createPlane();
+		if (!shape::plane)    shape::createPlane(); 
 		if (!shape::cone)	  shape::createCone();
 		if (!shape::monkey)	  shape::createMonkey();
 		if (!shape::cylinder) shape::createCylinder();
@@ -298,6 +299,7 @@ namespace BasicShapes
 	{
 		if (shape::box)
 		{
+			shape::box->material->destroy();
 			shape::box->destroyMesh();
 			delete shape::box;
 		}
@@ -314,6 +316,7 @@ namespace BasicShapes
 
 		if (shape::plane)
 		{
+			shape::plane->material->destroy();
 			shape::plane->destroyMesh();
 			delete shape::plane;
 		}

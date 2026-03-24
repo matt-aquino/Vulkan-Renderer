@@ -31,6 +31,11 @@ HelloWorldTriangle::HelloWorldTriangle(std::string name, const VulkanSwapChain& 
 	RecordScene();
 }
 
+void HelloWorldTriangle::ResetFrameCount()
+{
+	currentFrame = 0;
+}
+
 void HelloWorldTriangle::RecordScene() 
 {	
 	// begin recording command buffers
@@ -67,7 +72,6 @@ void HelloWorldTriangle::RecordScene()
 
 		vkCmdDraw(commandBuffersList[i], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
-		// params: command buffer, vertex count, instanceCount (for instanced rendering), first vertex, first instance
 		vkCmdEndRenderPass(commandBuffersList[i]);
 
 		if (vkEndCommandBuffer(commandBuffersList[i]) != VK_SUCCESS)
@@ -102,56 +106,46 @@ VulkanReturnValues HelloWorldTriangle::PresentScene(const VulkanSwapChain& swapC
 	*  3. Return image to swap chain for presentation
 	*/
 
+	vkWaitForFences(logicalDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
+
 	uint32_t imageIndex;
 	VkResult result = vkAcquireNextImageKHR(logicalDevice, swapChain.swapChain, UINT64_MAX, presentCompleteSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
-	if (result == VK_ERROR_OUT_OF_DATE_KHR)
-	{
+	if (result == VK_ERROR_OUT_OF_DATE_KHR) 
 		return VulkanReturnValues::VK_SWAPCHAIN_OUT_OF_DATE;
-	}
 
 	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
-	{
 		throw std::runtime_error("Failed to acquire swap chain image");
-	}
 
 	UpdateUniforms(imageIndex); // update matrices as needed
 
-	// check if a previous frame is using this image
-	if (imagesInFlight[imageIndex] != VK_NULL_HANDLE)
-	{
-		vkWaitForFences(logicalDevice, 1, &imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
-	}
+	// RENDERING
 
-	// mark image as now being in use by this frame
-	imagesInFlight[imageIndex] = inFlightFences[currentFrame];
+	VkSemaphore waitSemaphores = presentCompleteSemaphores[currentFrame] ;
+	VkPipelineStageFlags waitStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	VkSemaphore signalSemaphores = renderCompleteSemaphores[imageIndex];
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-	VkSemaphore waitSemaphores[] = { presentCompleteSemaphores[currentFrame] };
-	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = waitSemaphores;
-	submitInfo.pWaitDstStageMask = waitStages;
+	submitInfo.pWaitSemaphores = &waitSemaphores; // wait for previous presentation to complete before executing current command buffer
+	submitInfo.pWaitDstStageMask = &waitStages;
 	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &commandBuffersList[imageIndex];
-
-	VkSemaphore signalSemaphores[] = { renderCompleteSemaphores[currentFrame] };
+	submitInfo.pCommandBuffers = &commandBuffersList[currentFrame];
 	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = signalSemaphores;
-	
-	vkResetFences(logicalDevice, 1, &inFlightFences[currentFrame]);
+	submitInfo.pSignalSemaphores = &signalSemaphores; // signal that rendering is completed
 
 	if (vkQueueSubmit(VulkanDevice::GetVulkanDevice()->GetQueues().renderQueue, 1, &submitInfo, inFlightFences[currentFrame]) != VK_SUCCESS)
 		throw std::runtime_error("Failed to submit draw command buffer!");
 
+	// PRESENTATION
+	VkSwapchainKHR swapChains[] = { swapChain.swapChain };
+
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = signalSemaphores;
-
-	VkSwapchainKHR swapChains[] = { swapChain.swapChain };
+	presentInfo.pWaitSemaphores = &signalSemaphores; // wait for rendering from vkQueueSubmit to complete
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = swapChains;
 	presentInfo.pImageIndices = &imageIndex;
@@ -616,11 +610,17 @@ void HelloWorldTriangle::CreateSyncObjects(const VulkanSwapChain& swapChain)
 	renderCompleteSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 	presentCompleteSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
 	inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
-	imagesInFlight.resize(swapChain.swapChainImages.size(), VK_NULL_HANDLE);
 
+	VkSemaphoreTypeCreateInfo semaphoreTypeInfo = {};
+	semaphoreTypeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+	semaphoreTypeInfo.semaphoreType = VK_SEMAPHORE_TYPE_BINARY;
+	semaphoreTypeInfo.initialValue = 0;
+	
 	VkSemaphoreCreateInfo semaphoreInfo = {};
-	VkFenceCreateInfo fenceInfo = {};
 	semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	semaphoreInfo.pNext = &semaphoreTypeInfo;
+
+	VkFenceCreateInfo fenceInfo = {};
 	fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 

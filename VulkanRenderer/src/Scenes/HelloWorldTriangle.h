@@ -32,6 +32,8 @@ public:
 	virtual void HandleKeyboardInput(const uint8_t* keystates, float dt) override;
 	virtual void HandleMouseInput(uint32_t buttons, const int x, const int y, float mouseWheelX, float mouseWheelY) override;
 
+	virtual void ResetFrameCount() override;
+
 private:
 	
 	virtual void DestroyScene(bool isRecreation) override;
